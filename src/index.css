@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens: Industrial Modern Dark ────────────────────────────────── */
+@theme {
+  --color-amber: #f5a623;
+  --color-amber-dark: #d4890a;
+
+  --color-void: #0a0a0a;
+  --color-pitch: #111111;
+  --color-forge: #1a1a1a;
+  --color-iron: #222222;
+  --color-steel: #2a2a2a;
+  --color-smoke: #3a3a3a;
+
+  --color-ash: #aaaaaa;
+  --color-chalk: #dddddd;
+
+  --color-ok: #22c55e;
+  --color-danger: #ef4444;
+
+  --font-display: "Bebas Neue", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-pitch);
+  color: var(--color-chalk);
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-forge);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-smoke);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ash);
+}
+
+/* ─── Utilities ─────────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.glow-amber {
+  box-shadow:
+    0 0 20px rgba(245, 166, 35, 0.3),
+    0 0 60px rgba(245, 166, 35, 0.08);
+}
+
+.card {
+  background-color: var(--color-iron);
+  border: 1px solid var(--color-smoke);
+  border-radius: 1rem;
+}
+
+.btn-amber {
+  background-color: var(--color-amber);
+  color: #000;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    transform 0.1s;
+  border: none;
+  font-family: var(--font-body);
+}
+.btn-amber:hover:not(:disabled) {
+  background-color: var(--color-amber-dark);
+}
+.btn-amber:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn-amber:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--color-smoke);
+  color: var(--color-ash);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+  font-family: var(--font-body);
+}
+.btn-ghost:hover {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+.input-dark {
+  background-color: var(--color-steel);
+  border: 1px solid var(--color-smoke);
+  color: var(--color-chalk);
+  border-radius: 0.75rem;
+  outline: none;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.input-dark::placeholder {
+  color: var(--color-ash);
+}
+.input-dark:focus {
+  border-color: var(--color-amber);
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.15);
+}
+
+/* ─── Skeleton ───────────────────────────────────────────────────────────────── */
+@keyframes sk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.skeleton {
+  background-color: var(--color-steel);
+  border-radius: 0.5rem;
+  animation: sk-pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Order pulse ────────────────────────────────────────────────────────────── */
+@keyframes status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(245, 166, 35, 0);
+  }
+}
+.status-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
+}
