@@ -1,10 +1,7 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 
-/**
- * @param {string[]} [allowedRoles] — if omitted, only requires authentication
- */
-export default function PrivateRoute({ children, allowedRoles }) {
+function PrivateRoute({ allowedRoles = [] }) {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
@@ -17,9 +14,11 @@ export default function PrivateRoute({ children, allowedRoles }) {
     );
   }
 
-  if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) {
+  if (allowedRoles.length && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <Outlet />;
 }
+
+export default PrivateRoute;

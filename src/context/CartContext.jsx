@@ -4,14 +4,22 @@ import { AuthContext } from "./AuthContext.jsx";
 
 const CartContext = createContext(null);
 
-export const fmt = (value) =>
-  Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const FREIGHT_BASE = 0;
+
+const currency = (value) =>
+  Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+
+const sumAddons = (addons = []) =>
+  addons.reduce((sum, addon) => sum + Number(addon?.price || 0), 0);
 
 function storageKey(userId) {
-  return userId ? `hb_cart_${userId}` : "hb_cart_guest";
+  return userId ? `pizzaria_cart_${userId}` : "pizzaria_cart_guest";
 }
 
-function loadCart(userId) {
+function loadCartFromStorage(userId) {
   try {
     const raw = localStorage.getItem(storageKey(userId));
     return raw ? JSON.parse(raw) : [];
@@ -20,110 +28,171 @@ function loadCart(userId) {
   }
 }
 
-/**
- * Each cart item has the shape:
- * {
- *   key: string,          // unique key (e.g. productId + timestamp)
- *   productId?: string,
- *   comboId?: string,
- *   name: string,
- *   imageUrl?: string,
- *   basePrice: number,    // basePrice sem addons
- *   unitPrice: number,    // basePrice + addons price
- *   quantity: number,
- *   meatDoneness?: 'MAL_PASSADO' | 'AO_PONTO' | 'BEM_PASSADO',
- *   addons: [{ addonId, name, price, quantity }],
- *   removedIngredients: string[],
- *   notes: string,
- * }
- */
+const normalizeItem = (item) => {
+  const id = String(item?.id || item?.productId || item?.key || "").trim();
+  const nome = item?.nome || item?.name || item?.title || "Produto";
+  const price = Number(item?.price ?? item?.basePrice ?? 0);
+  const addons = Array.isArray(item?.addons) ? item.addons : [];
+  const removals = Array.isArray(item?.removals) ? item.removals : [];
+  const observation = item?.observation ?? item?.notes ?? "";
+  const quantity = Math.max(1, Number(item?.quantity || 1));
+
+  const fallbackKey = [
+    id,
+    addons
+      .map((addon) => addon?.id || addon?.nome)
+      .filter(Boolean)
+      .sort()
+      .join("."),
+    removals.slice().sort().join("."),
+    String(observation || "").trim(),
+  ].join("|");
+
+  return {
+    ...item,
+    id,
+    nome,
+    price,
+    addons,
+    removals,
+    observation,
+    quantity,
+    key: item?.key || fallbackKey,
+  };
+};
+
+const itemUnitPrice = (item) =>
+  Number(item?.price || 0) + sumAddons(item?.addons || []);
+
 export function CartProvider({ children }) {
   const { user } = useContext(AuthContext);
   const userId = user?.id ?? null;
 
-  const [items, setItems] = useState(() => loadCart(userId));
+  const [items, setItems] = useState(() => loadCartFromStorage(userId));
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    setItems(loadCart(userId));
+    setItems(loadCartFromStorage(userId).map(normalizeItem));
   }, [userId]);
 
   useEffect(() => {
     localStorage.setItem(storageKey(userId), JSON.stringify(items));
   }, [items, userId]);
 
-  const addItem = (item) => {
+  const addItems = (itemsToAdd, { silent = false } = {}) => {
     setItems((prev) => {
-      const existing = prev.find((e) => e.key === item.key);
-      if (existing) {
-        return prev.map((e) =>
-          e.key === item.key
-            ? { ...e, quantity: e.quantity + (item.quantity ?? 1) }
-            : e,
-        );
+      let next = [...prev];
+
+      for (const rawItem of itemsToAdd) {
+        const item = normalizeItem(rawItem);
+        const existing = next.find((entry) => entry.key === item.key);
+
+        if (existing) {
+          next = next.map((entry) =>
+            entry.key === item.key
+              ? { ...entry, quantity: entry.quantity + (item.quantity || 1) }
+              : entry,
+          );
+          continue;
+        }
+
+        next = [...next, item];
       }
-      return [...prev, { ...item, quantity: item.quantity ?? 1 }];
+
+      return next;
     });
-    toast.success(`${item.name} adicionado!`, {
-      style: {
-        background: "#222",
-        color: "#F5A623",
-        border: "1px solid #3A3A3A",
-      },
-      iconTheme: { primary: "#F5A623", secondary: "#000" },
-    });
-    setIsCartOpen(true);
+
+    if (!silent) {
+      toast.success(
+        itemsToAdd.length > 1
+          ? "Itens adicionados ao carrinho"
+          : "Item adicionado ao carrinho",
+      );
+    }
+  };
+
+  const addItem = (item) => {
+    addItems([item]);
+  };
+
+  const updateItem = (key, updater) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        const next =
+          typeof updater === "function"
+            ? updater(item)
+            : { ...item, ...updater };
+        return normalizeItem(next);
+      }),
+    );
+  };
+
+  const updateQuantity = (key, quantity) => {
+    setItems((prev) =>
+      prev
+        .map((item) =>
+          item.key === key ? normalizeItem({ ...item, quantity }) : item,
+        )
+        .filter((item) => item.quantity > 0),
+    );
   };
 
   const removeItem = (key) => {
-    setItems((prev) => prev.filter((e) => e.key !== key));
-  };
-
-  const updateQuantity = (key, qty) => {
-    if (qty <= 0) return removeItem(key);
-    setItems((prev) =>
-      prev.map((e) => (e.key === key ? { ...e, quantity: qty } : e)),
-    );
+    setItems((prev) => prev.filter((item) => item.key !== key));
   };
 
   const clearCart = () => setItems([]);
 
-  const openCart = () => setIsCartOpen(true);
-  const closeCart = () => setIsCartOpen(false);
-
   const subtotal = useMemo(
-    () => items.reduce((acc, e) => acc + e.unitPrice * e.quantity, 0),
+    () =>
+      items.reduce((acc, item) => acc + itemUnitPrice(item) * item.quantity, 0),
     [items],
   );
 
-  const totalItems = useMemo(
-    () => items.reduce((acc, e) => acc + e.quantity, 0),
-    [items],
-  );
+  const freight = useMemo(() => {
+    if (!subtotal) {
+      return 0;
+    }
+
+    return 0;
+  }, [subtotal]);
+
+  const total = subtotal + freight;
 
   const value = useMemo(
     () => ({
       items,
       isCartOpen,
-      subtotal,
-      totalItems,
+      openCart: () => setIsCartOpen(true),
+      closeCart: () => setIsCartOpen(false),
       addItem,
-      removeItem,
+      addItems,
+      updateItem,
       updateQuantity,
+      removeItem,
       clearCart,
-      openCart,
-      closeCart,
+      subtotal,
+      freight,
+      total,
+      formatted: {
+        subtotal: currency(subtotal),
+        freight: currency(freight),
+        total: currency(total),
+      },
     }),
-    [items, isCartOpen, subtotal, totalItems],
+    [items, isCartOpen, subtotal, freight, total],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
-export function useCart() {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error("useCart must be inside CartProvider");
-  return ctx;
-}
+export const useCart = () => {
+  const context = useContext(CartContext);
 
-export { CartContext };
+  if (!context) {
+    throw new Error("useCart deve ser usado dentro de CartProvider");
+  }
+
+  return context;
+};

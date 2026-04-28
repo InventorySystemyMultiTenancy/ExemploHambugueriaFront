@@ -1,275 +1,85 @@
-// OrderTracker.jsx
-// Inspirado no rastreamento iFood — timeline vertical com animação
-
-const STATUS_STEPS = [
-  {
-    key: "RECEBIDO",
-    label: "Pedido Recebido",
-    icon: "📋",
-    desc: "Seu pedido entrou na fila",
-  },
-  {
-    key: "EM_PREPARO",
-    label: "Em Preparo",
-    icon: "👨‍🍳",
-    desc: "A cozinha está no fogo!",
-  },
-  {
-    key: "PRONTO",
-    label: "Pronto",
-    icon: "✅",
-    desc: "Seu pedido está pronto",
-  },
-  {
-    key: "SAIU_PARA_ENTREGA",
-    label: "Saiu para Entrega",
-    icon: "🛵",
-    desc: "A caminho de você",
-  },
-  { key: "ENTREGUE", label: "Entregue", icon: "🎉", desc: "Bom apetite!" },
+const statusSteps = [
+  { key: "RECEBIDO", label: "Recebido" },
+  { key: "PREPARANDO", label: "Preparando" },
+  { key: "NO_FORNO", label: "No Forno" },
+  { key: "SAIU_PARA_ENTREGA", label: "Saiu para Entrega" },
+  { key: "ENTREGUE", label: "Entregue" },
 ];
 
-const STATUS_PICKUP = [
-  {
-    key: "RECEBIDO",
-    label: "Pedido Recebido",
-    icon: "📋",
-    desc: "Seu pedido entrou na fila",
-  },
-  { key: "EM_PREPARO", label: "Em Preparo", icon: "👨‍🍳", desc: "Quase pronto!" },
-  {
-    key: "PRONTO",
-    label: "Pronto para Retirada",
-    icon: "✅",
-    desc: "Pode vir buscar!",
-  },
-  { key: "ENTREGUE", label: "Retirado", icon: "🎉", desc: "Bom apetite!" },
-];
-
-function OrderTracker({
-  status = "RECEBIDO",
-  isPickup = false,
-  estimatedMinutes = null,
-}) {
-  const steps = isPickup ? STATUS_PICKUP : STATUS_STEPS;
-  const activeIndex = steps.findIndex((s) => s.key === status);
+function OrderTracker({ status = "RECEBIDO" }) {
+  const activeIndex = statusSteps.findIndex((step) => step.key === status);
   const isCancelled = status === "CANCELADO";
-  const isDone = status === "ENTREGUE";
 
   return (
-    <div
-      style={{
-        background: "var(--color-iron)",
-        border: "1px solid var(--color-smoke)",
-        borderRadius: "1rem",
-        padding: "1.5rem",
-      }}
-    >
-      {/* Title */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <h3
-          className="font-display"
-          style={{ margin: 0, fontSize: "1.4rem", color: "var(--color-amber)" }}
-        >
-          ACOMPANHE SEU PEDIDO
-        </h3>
-        {estimatedMinutes && !isDone && !isCancelled && (
-          <span
-            style={{
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              color: "#000",
-              background: "var(--color-amber)",
-              borderRadius: "2rem",
-              padding: "0.25rem 0.625rem",
-            }}
-          >
-            ≈ {estimatedMinutes} min
-          </span>
-        )}
-      </div>
+    <section className="rounded-3xl border border-gold/20 bg-lacquer/70 p-4 sm:p-6">
+      <h3 className="font-display text-xl text-gold">Timeline do Pedido</h3>
 
-      {/* Cancelled state */}
       {isCancelled ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            padding: "1rem",
-            borderRadius: "0.75rem",
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1.5rem" }}>❌</span>
-          <div>
-            <p
-              style={{
-                margin: 0,
-                fontWeight: 700,
-                color: "var(--color-danger)",
-              }}
-            >
-              Pedido Cancelado
-            </p>
-            <p
-              style={{
-                margin: "2px 0 0",
-                fontSize: "0.78rem",
-                color: "var(--color-ash)",
-              }}
-            >
-              Entre em contato caso tenha dúvidas.
-            </p>
-          </div>
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-red-400 bg-red-500/20 text-red-400 text-xs font-bold">
+            ✕
+          </span>
+          <p className="font-semibold text-red-400">Pedido Cancelado</p>
         </div>
       ) : (
-        <ol
-          style={{
-            listStyle: "none",
-            padding: 0,
-            margin: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 0,
-          }}
-        >
-          {steps.map((step, idx) => {
-            const done = idx < activeIndex;
-            const active = idx === activeIndex;
-            const future = idx > activeIndex;
+        <ol className="mt-6 space-y-4">
+          {statusSteps.map((step, index) => {
+            const done = index < activeIndex;
+            const active = index === activeIndex;
 
             return (
               <li
                 key={step.key}
-                style={{ display: "flex", gap: "1rem", position: "relative" }}
+                className="relative pl-10 transition-all duration-300"
+                style={{ animationDelay: `${index * 80}ms` }}
               >
-                {/* Line */}
-                {idx < steps.length - 1 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "15px",
-                      top: "32px",
-                      width: "2px",
-                      height: "calc(100% - 4px)",
-                      background: done
-                        ? "var(--color-amber)"
-                        : "var(--color-smoke)",
-                      transition: "background 0.5s",
-                    }}
-                  />
-                )}
-
-                {/* Dot */}
-                <div style={{ flexShrink: 0, paddingTop: "2px" }}>
-                  <div
-                    className={active ? "status-pulse" : ""}
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.9rem",
-                      background: done
-                        ? "var(--color-amber)"
-                        : active
-                          ? "var(--color-amber)"
-                          : "var(--color-steel)",
-                      border: `2px solid ${active ? "var(--color-amber)" : done ? "var(--color-amber-dark)" : "var(--color-smoke)"}`,
-                      opacity: future ? 0.4 : 1,
-                      transition: "all 0.4s",
-                    }}
-                  >
-                    {done ? "✓" : step.icon}
-                  </div>
-                </div>
-
-                {/* Text */}
-                <div style={{ flex: 1, paddingBottom: "1.25rem" }}>
-                  <p
-                    style={{
-                      margin: "5px 0 2px",
-                      fontWeight: active ? 700 : done ? 600 : 400,
-                      fontSize: "0.9rem",
-                      color: active
-                        ? "var(--color-amber)"
-                        : done
-                          ? "var(--color-chalk)"
-                          : "var(--color-ash)",
-                      transition: "color 0.3s",
-                    }}
-                  >
-                    {step.label}
-                    {active && (
-                      <span
-                        style={{
-                          marginLeft: "8px",
-                          fontSize: "0.65rem",
-                          fontWeight: 600,
-                          color: "#000",
-                          background: "var(--color-amber)",
-                          padding: "1px 6px",
-                          borderRadius: "10px",
-                        }}
-                      >
-                        AGORA
-                      </span>
-                    )}
-                  </p>
-                  {(active || done) && (
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "0.75rem",
-                        color: "var(--color-ash)",
-                      }}
+                <span
+                  className={`absolute left-0 top-0 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold transition-all duration-300 ${
+                    active
+                      ? "animate-pulse border-gold bg-gold text-black shadow-[0_0_12px_rgba(212,169,77,0.6)]"
+                      : done
+                        ? "border-gold bg-gold text-black"
+                        : "border-gray-300 bg-gray-50 text-smoke"
+                  }`}
+                >
+                  {done ? (
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
                     >
-                      {step.desc}
-                    </p>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  ) : (
+                    index + 1
                   )}
-                </div>
+                </span>
+                <p
+                  className={`font-semibold transition-colors duration-300 ${
+                    active ? "text-gold" : done ? "text-gray-900" : "text-smoke"
+                  }`}
+                >
+                  {step.label}
+                </p>
+                {index < statusSteps.length - 1 ? (
+                  <span
+                    className={`absolute left-[13px] top-7 h-6 w-px transition-colors duration-500 ${
+                      done ? "bg-gold/50" : "bg-white/15"
+                    }`}
+                  />
+                ) : null}
               </li>
             );
           })}
         </ol>
       )}
-
-      {/* Done celebration */}
-      {isDone && (
-        <div
-          style={{
-            marginTop: "1rem",
-            padding: "0.875rem",
-            borderRadius: "0.75rem",
-            background: "rgba(34,197,94,0.1)",
-            border: "1px solid rgba(34,197,94,0.3)",
-            textAlign: "center",
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontWeight: 700,
-              color: "var(--color-ok)",
-              fontSize: "1rem",
-            }}
-          >
-            🎉 Pedido entregue! Bom apetite!
-          </p>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 

@@ -1,374 +1,116 @@
 import { useNavigate } from "react-router-dom";
-import { useCart, fmt } from "../context/CartContext.jsx";
+import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../hooks/useAuth.js";
+import { useTranslation } from "../context/I18nContext.jsx";
+import CartProductCard from "./CartProductCard.jsx";
 
-export default function CartDrawer() {
+function CartDrawer() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { t } = useTranslation();
   const {
     items,
     isCartOpen,
     closeCart,
-    removeItem,
+    updateItem,
     updateQuantity,
-    subtotal,
-    clearCart,
+    removeItem,
+    formatted,
+    total,
   } = useCart();
-
-  const handleCheckout = () => {
-    closeCart();
-    if (!isAuthenticated) {
-      navigate("/login?redirect=/checkout");
-    } else {
-      navigate("/checkout");
-    }
-  };
 
   return (
     <>
-      {/* Backdrop */}
       <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 40,
-          background: "rgba(0,0,0,0.7)",
-          transition: "opacity 0.3s",
-          opacity: isCartOpen ? 1 : 0,
-          pointerEvents: isCartOpen ? "auto" : "none",
-        }}
+        className={`fixed inset-0 z-40 bg-black/70 transition-opacity duration-300 ${
+          isCartOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
         onClick={closeCart}
       />
 
-      {/* Drawer */}
       <aside
-        style={{
-          position: "fixed",
-          right: 0,
-          top: 0,
-          zIndex: 50,
-          height: "100%",
-          width: "100%",
-          maxWidth: "420px",
-          background: "var(--color-forge)",
-          borderLeft: "1px solid var(--color-smoke)",
-          display: "flex",
-          flexDirection: "column",
-          transform: isCartOpen ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.3s ease-in-out",
-        }}
+        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md transform flex-col bg-[#0f141b] p-4 text-[#e7ebf3] shadow-2xl transition-transform duration-300 ease-in-out sm:p-6 ${
+          isCartOpen ? "translate-x-0" : "translate-x-full"
+        }`}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: "1.25rem 1.5rem",
-            borderBottom: "1px solid var(--color-smoke)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <h3
-            className="font-display"
-            style={{
-              fontSize: "1.5rem",
-              color: "var(--color-amber)",
-              margin: 0,
-            }}
-          >
-            SEU PEDIDO
+        <div className="flex items-center justify-between border-b border-[#2a313d] pb-4">
+          <h3 className="font-display text-2xl text-amber-400">
+            {t("CART_TITLE", "Seu Carrinho")}
           </h3>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {items.length > 0 && (
-              <button
-                onClick={clearCart}
-                className="btn-ghost"
-                style={{ padding: "0.4rem 0.625rem", fontSize: "0.72rem" }}
-              >
-                Limpar
-              </button>
-            )}
-            <button
-              onClick={closeCart}
-              className="btn-ghost"
-              style={{ padding: "0.4rem 0.75rem", fontSize: "0.875rem" }}
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={closeCart}
+            className="rounded-xl border border-[#2f3745] px-3 py-2 text-sm text-[#98a1b3] transition hover:bg-[#1a212c]"
+          >
+            ✕ {t("CART_CLOSE", "Fechar")}
+          </button>
         </div>
 
-        {/* Items list */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.5rem" }}>
+        <div className="mt-5 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1">
           {!items.length ? (
-            <div style={{ textAlign: "center", padding: "3rem 0" }}>
-              <p style={{ fontSize: "3rem" }}>🍔</p>
-              <p style={{ color: "var(--color-ash)", fontSize: "0.875rem" }}>
-                Seu carrinho está vazio.
-                <br />
-                Monte seu burger!
-              </p>
+            <div className="rounded-2xl border border-dashed border-[#3c4555] p-6 text-center text-sm text-[#9ca5b8]">
+              {t("CART_EMPTY", "Seu carrinho está vazio.")}
             </div>
           ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-              }}
-            >
-              {items.map((item) => (
-                <article
-                  key={item.key}
-                  style={{
-                    background: "var(--color-iron)",
-                    border: "1px solid var(--color-smoke)",
-                    borderRadius: "1rem",
-                    padding: "0.875rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.75rem",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    {/* Thumbnail */}
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        style={{
-                          width: "52px",
-                          height: "52px",
-                          objectFit: "cover",
-                          borderRadius: "0.5rem",
-                          flexShrink: 0,
-                        }}
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "52px",
-                          height: "52px",
-                          borderRadius: "0.5rem",
-                          flexShrink: 0,
-                          background: "var(--color-steel)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.5rem",
-                        }}
-                      >
-                        🍔
-                      </div>
-                    )}
-
-                    <div style={{ flex: 1 }}>
-                      <p
-                        style={{
-                          margin: "0 0 2px",
-                          fontWeight: 700,
-                          fontSize: "0.875rem",
-                          color: "var(--color-chalk)",
-                        }}
-                      >
-                        {item.name}
-                      </p>
-
-                      {/* Meat doneness */}
-                      {item.meatDoneness && (
-                        <p
-                          style={{
-                            margin: "0 0 2px",
-                            fontSize: "0.7rem",
-                            color: "var(--color-amber)",
-                          }}
-                        >
-                          🥩 {item.meatDoneness.replace("_", " ")}
-                        </p>
-                      )}
-
-                      {/* Addons */}
-                      {item.addons?.length > 0 && (
-                        <p
-                          style={{
-                            margin: "0 0 2px",
-                            fontSize: "0.7rem",
-                            color: "var(--color-ash)",
-                          }}
-                        >
-                          + {item.addons.map((a) => a.name).join(", ")}
-                        </p>
-                      )}
-
-                      {/* Removed */}
-                      {item.removedIngredients?.length > 0 && (
-                        <p
-                          style={{
-                            margin: "0 0 2px",
-                            fontSize: "0.7rem",
-                            color: "var(--color-danger)",
-                          }}
-                        >
-                          sem {item.removedIngredients.join(", ")}
-                        </p>
-                      )}
-
-                      {/* Notes */}
-                      {item.notes && (
-                        <p
-                          style={{
-                            margin: "0 0 2px",
-                            fontSize: "0.7rem",
-                            color: "var(--color-ash)",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          "{item.notes}"
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Remove */}
-                    <button
-                      onClick={() => removeItem(item.key)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "var(--color-ash)",
-                        fontSize: "1rem",
-                        padding: "0",
-                        lineHeight: 1,
-                      }}
-                      title="Remover"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {/* Qty + price */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginTop: "0.625rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.key, item.quantity - 1)
-                        }
-                        style={{
-                          width: "26px",
-                          height: "26px",
-                          borderRadius: "50%",
-                          background: "var(--color-steel)",
-                          border: "1px solid var(--color-smoke)",
-                          color: "var(--color-chalk)",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                        }}
-                      >
-                        −
-                      </button>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          fontSize: "0.875rem",
-                          minWidth: "20px",
-                          textAlign: "center",
-                        }}
-                      >
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.key, item.quantity + 1)
-                        }
-                        style={{
-                          width: "26px",
-                          height: "26px",
-                          borderRadius: "50%",
-                          background: "var(--color-steel)",
-                          border: "1px solid var(--color-smoke)",
-                          color: "var(--color-chalk)",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                        }}
-                      >
-                        +
-                      </button>
-                    </div>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontWeight: 800,
-                        color: "var(--color-amber)",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      {fmt(item.unitPrice * item.quantity)}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
+            items.map((item) => (
+              <CartProductCard
+                key={item.key}
+                item={item}
+                onQuantityChange={(quantity) =>
+                  updateQuantity(item.key, quantity)
+                }
+                onRemove={() => removeItem(item.key)}
+                onObservationChange={(observation) =>
+                  updateItem(item.key, { observation })
+                }
+              />
+            ))
           )}
         </div>
 
-        {/* Footer */}
-        {items.length > 0 && (
-          <div
-            style={{
-              padding: "1rem 1.5rem",
-              borderTop: "1px solid var(--color-smoke)",
-              background: "var(--color-forge)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.875rem",
-              }}
-            >
-              <span style={{ color: "var(--color-ash)", fontSize: "0.875rem" }}>
-                Subtotal
-              </span>
-              <span
-                style={{
-                  fontWeight: 800,
-                  color: "var(--color-chalk)",
-                  fontSize: "1rem",
-                }}
-              >
-                {fmt(subtotal)}
-              </span>
+        <footer className="mt-3 border-t border-[#2a313d] bg-[#0f141b] pt-4 sm:pt-6">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between text-[#9da5b7]">
+              <span>{t("CART_SUBTOTAL", "Subtotal")}</span>
+              <span>{formatted.subtotal}</span>
             </div>
-            <button
-              onClick={handleCheckout}
-              className="btn-amber"
-              style={{ width: "100%", padding: "1rem", fontSize: "1rem" }}
-            >
-              Finalizar Pedido →
-            </button>
+            <div className="flex justify-between text-[#9da5b7]">
+              <span>{t("CART_FREIGHT", "Frete")}</span>
+              <span>{formatted.freight}</span>
+            </div>
+            <div className="flex justify-between text-lg font-bold text-amber-400">
+              <span>{t("CART_TOTAL", "Total")}</span>
+              <span>{formatted.total}</span>
+            </div>
           </div>
-        )}
+
+          <button
+            type="button"
+            disabled={!total}
+            onClick={() => {
+              closeCart();
+              if (user?.role === "MESA") {
+                navigate("/mesa/checkout");
+              } else if (!isAuthenticated) {
+                navigate("/login?redirect=/checkout");
+              } else {
+                navigate("/checkout");
+              }
+            }}
+            className={`mt-4 block w-full rounded-2xl px-5 py-4 text-center text-base font-bold transition ${
+              total
+                ? "bg-amber-400 text-[#10151d] shadow-md hover:bg-amber-300"
+                : "cursor-not-allowed bg-[#232b36] text-[#667085]"
+            }`}
+          >
+            {t("CART_BTN_CHECKOUT", "Finalizar Compra")}
+          </button>
+        </footer>
       </aside>
     </>
   );
 }
+
+export default CartDrawer;

@@ -1,64 +1,79 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import Navbar from "../components/Navbar.jsx";
-import { useCart, fmt } from "../context/CartContext.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 import { api } from "../lib/api.js";
+import { useTranslation } from "../context/I18nContext.jsx";
 
-const CEP_RE = /^\d{5}-?\d{3}$/;
-const POLL_MS = 4000;
+const POLL_INTERVAL_MS = 4000;
 
-function formatCep(v) {
+const currency = (v) =>
+  Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const formatCep = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 8);
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
-}
+};
 
-export default function CheckoutPage() {
+const mapItemToApi = (item) => {
+  const payload = item.payload || {};
+
+  if (payload.productId || item.id) {
+    return {
+      productId: payload.productId || item.id,
+      addonIds:
+        payload.addonIds || (item.addons || []).map((addon) => addon.id),
+      removedIngredients:
+        payload.removedIngredients ||
+        (item.removals || []).join(", ") ||
+        undefined,
+      quantity: item.quantity,
+      notes: item.observation || item.notes || undefined,
+    };
+  }
+};
+
+function CheckoutPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { t } = useTranslation();
   const { items, subtotal, clearCart } = useCart();
+  const [paymentMode, setPaymentMode] = useState("online");
+  const [waitingOrderId, setWaitingOrderId] = useState(null);
+  const pollRef = useRef(null);
 
-  const [deliveryType, setDeliveryType] = useState("entrega"); // "entrega" | "retirada"
+  // Address
   const [cep, setCep] = useState("");
   const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
+  const [referencia, setReferencia] = useState("");
   const [rua, setRua] = useState("");
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
-  const [complemento, setComplemento] = useState("");
   const [notes, setNotes] = useState("");
-  const [couponCode, setCouponCode] = useState("");
-  const [coupon, setCoupon] = useState(null);
-  const [couponError, setCouponError] = useState("");
 
+  // Freight
   const [freight, setFreight] = useState(null);
   const [freightLoading, setFreightLoading] = useState(false);
   const [freightError, setFreightError] = useState("");
-
-  const [paymentMode, setPaymentMode] = useState("online"); // "online" | "cash" | "card_machine"
-  const [waitingOrderId, setWaitingOrderId] = useState(null);
   const [pollStatus, setPollStatus] = useState("PENDENTE");
-  const pollRef = useRef(null);
+  const [deliveryType, setDeliveryType] = useState("entrega"); // "entrega" | "retirada"
 
-  // ─── Redirect if no items ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!items.length) navigate("/cardapio");
-  }, [items, navigate]);
-
-  // ─── Payment polling ─────────────────────────────────────────────────────────
+  // Payment polling
   useEffect(() => {
     if (!waitingOrderId) return;
-    pollRef.current = setInterval(async () => {
+    const poll = async () => {
       try {
         const res = await api.get(`/orders/${waitingOrderId}`);
-        const order = res.data?.data;
+        const order = res.data?.data || res.data;
         const status = order?.paymentStatus;
         setPollStatus(status);
         if (status === "APROVADO") {
           clearInterval(pollRef.current);
           clearCart();
-          toast.success("Pagamento aprovado! 🍔");
+          toast.success("Pagamento confirmado! Preparando seu pedido 🍕");
           navigate("/dashboard");
         } else if (status === "RECUSADO") {
           clearInterval(pollRef.current);
@@ -66,769 +81,527 @@ export default function CheckoutPage() {
           setWaitingOrderId(null);
         }
       } catch {
-        /* ignore */
+        // ignore transient errors
       }
-    }, POLL_MS);
+    };
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    poll();
     return () => clearInterval(pollRef.current);
   }, [waitingOrderId, clearCart, navigate]);
 
-  // ─── Fetch freight ──────────────────────────────────────────────────────────
-  const fetchFreight = useCallback(async () => {
-    if (!CEP_RE.test(cep) || !numero) return;
-    setFreightLoading(true);
-    setFreightError("");
+  // ViaCEP auto-fill
+  const fetchViaCep = useCallback(async (rawCep) => {
+    const clean = rawCep.replace(/\D/g, "");
+    if (clean.length !== 8) return;
     try {
-      const res = await api.post("/delivery/calculate", {
-        cep,
-        numero,
-        cidade: cidade || "São Paulo",
-      });
-      setFreight(res.data?.data);
-    } catch {
-      setFreightError("Não foi possível calcular o frete para este CEP.");
-      setFreight(null);
-    } finally {
-      setFreightLoading(false);
-    }
-  }, [cep, numero, cidade]);
-
-  // Auto-fetch freight when CEP + numero are complete
-  useEffect(() => {
-    if (deliveryType === "entrega" && CEP_RE.test(cep) && numero) {
-      fetchFreight();
-    }
-  }, [cep, numero, deliveryType, fetchFreight]);
-
-  // ─── Coupon validation ──────────────────────────────────────────────────────
-  const validateCoupon = async () => {
-    if (!couponCode.trim()) return;
-    setCouponError("");
-    try {
-      const res = await api.get(
-        `/coupons/validate/${couponCode.trim().toUpperCase()}`,
-      );
-      const c = res.data?.data;
-      if (c.minOrderValue && subtotal < c.minOrderValue) {
-        setCouponError(
-          `Pedido mínimo de ${fmt(c.minOrderValue)} para este cupom.`,
-        );
-        setCoupon(null);
+      const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        setFreightError("CEP não encontrado.");
         return;
       }
-      setCoupon(c);
-      toast.success(`Cupom "${c.code}" aplicado!`, {
-        style: { background: "#222", color: "#F5A623" },
-      });
+      setRua(data.logradouro || "");
+      setBairro(data.bairro || "");
+      setCidade(data.localidade || "");
+      setFreightError("");
     } catch {
-      setCouponError("Cupom inválido ou expirado.");
-      setCoupon(null);
+      // silent
+    }
+  }, []);
+
+  const handleCepChange = (e) => {
+    const formatted = formatCep(e.target.value);
+    setCep(formatted);
+    setFreight(null);
+    if (formatted.replace(/\D/g, "").length === 8) {
+      fetchViaCep(formatted);
     }
   };
 
-  // ─── Discount calculation ───────────────────────────────────────────────────
-  const discount = coupon
-    ? coupon.type === "PERCENTUAL"
-      ? subtotal * (coupon.value / 100)
-      : Math.min(coupon.value, subtotal)
-    : 0;
+  const calculateFreight = async () => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) {
+      setFreightError("Informe um CEP válido com 8 dígitos.");
+      return;
+    }
+    if (!numero.trim()) {
+      setFreightError("Informe o número do endereço.");
+      return;
+    }
+    setFreightLoading(true);
+    setFreightError("");
+    setFreight(null);
+    try {
+      const res = await api.post("/delivery/calculate", {
+        cep,
+        numero: numero.trim(),
+        cidade: cidade.trim() || "São Paulo",
+        rua: rua.trim() || undefined,
+        complemento: complemento.trim() || undefined,
+      });
+      setFreight(res.data?.data);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error?.message ||
+        "Não foi possível calcular o frete. Verifique o endereço.";
+      setFreightError(msg);
+    } finally {
+      setFreightLoading(false);
+    }
+  };
 
-  const deliveryFee =
-    deliveryType === "retirada" ? 0 : (freight?.valorFrete ?? 0);
-  const total = subtotal - discount + deliveryFee;
+  const fullAddress =
+    deliveryType === "retirada"
+      ? "Retirada no local"
+      : [rua, numero, complemento, bairro, cidade].filter(Boolean).join(", ");
 
-  // ─── Map cart items to API format ───────────────────────────────────────────
-  const buildOrderItems = () =>
-    items.map((item) => ({
-      productId: item.productId,
-      comboId: item.comboId,
-      quantity: item.quantity,
-      notes: item.notes || undefined,
-      meatDoneness: item.meatDoneness || undefined,
-      removedIngredients: item.removedIngredients?.length
-        ? item.removedIngredients
-        : undefined,
-      addons: item.addons?.length
-        ? item.addons.map((a) => ({
-            addonId: a.addonId,
-            quantity: a.quantity ?? 1,
-          }))
-        : undefined,
-    }));
+  const effectiveFreight =
+    deliveryType === "retirada"
+      ? { valorFreteNumerico: 0, valorFrete: "R$\u00a00,00" }
+      : freight;
 
-  // ─── Create order mutation ──────────────────────────────────────────────────
-  const createOrder = useMutation({
-    mutationFn: async () => {
-      const payload = {
+  const totalWithFreight =
+    subtotal + (effectiveFreight?.valorFreteNumerico ?? 0);
+
+  const createOrderMutation = useMutation({
+    mutationFn: async (paymentMethod) => {
+      const response = await api.post("/orders", {
+        deliveryAddress: fullAddress || "Endereço não informado",
         isPickup: deliveryType === "retirada",
-        notes: notes || undefined,
-        couponCode: coupon?.code || undefined,
-        items: buildOrderItems(),
-        paymentMethod: paymentMode,
-      };
-
-      if (deliveryType === "entrega") {
-        payload.deliveryAddress =
-          `${rua || ""} ${numero}, ${bairro || ""}, ${cidade || ""} - CEP ${cep}`.trim();
-        payload.deliveryFee = deliveryFee;
-        if (freight?.lat) payload.deliveryLat = freight.lat;
-        if (freight?.lon) payload.deliveryLon = freight.lon;
-      }
-
-      const res = await api.post("/orders", payload);
-      return res.data?.data;
-    },
-    onSuccess: async (order) => {
-      if (paymentMode === "online") {
-        // Open Mercado Pago preference
-        try {
-          const prefRes = await api.post("/payments/preference", {
-            orderId: order.id,
-          });
-          const url = prefRes.data?.data?.init_point;
-          if (url) {
-            clearCart();
-            window.location.href = url;
-            return;
-          }
-        } catch {
-          toast.error("Erro ao iniciar pagamento. Redirecionando...");
-        }
-      }
-      // For cash/card_machine, just navigate to dashboard
-      clearCart();
-      toast.success("Pedido realizado! Acompanhe abaixo 🍔");
-      navigate("/dashboard");
-    },
-    onError: (err) => {
-      const msg = err.response?.data?.error?.message || "Erro ao criar pedido.";
-      toast.error(msg, { style: { background: "#222", color: "#fff" } });
+        notes: [notes, referencia ? `Ref: ${referencia}` : ""]
+          .filter(Boolean)
+          .join(" | "),
+        paymentMethod,
+        deliveryFee: effectiveFreight?.valorFreteNumerico ?? undefined,
+        deliveryLat: effectiveFreight?.lat ?? undefined,
+        deliveryLon: effectiveFreight?.lon ?? undefined,
+        items: items.map(mapItemToApi),
+      });
+      return response.data?.data || response.data;
     },
   });
 
+  const preferenceMutation = useMutation({
+    mutationFn: async (orderId) => {
+      const response = await api.post("/payments/preference", { orderId });
+      return response.data?.data;
+    },
+  });
+
+  const handleOnlineCheckout = async () => {
+    try {
+      const order = await createOrderMutation.mutateAsync("PIX");
+      const pref = await preferenceMutation.mutateAsync(order.id);
+      window.open(pref.initPoint, "_blank", "noopener,noreferrer");
+      setWaitingOrderId(order.id);
+    } catch {
+      toast.error("Erro ao gerar pagamento. Tente novamente.");
+    }
+  };
+
+  const handlePresencialCheckout = async () => {
+    try {
+      await createOrderMutation.mutateAsync("PRESENCIAL");
+      toast.success("Pedido confirmado! Aguarde a cobrança presencial.");
+      clearCart();
+      navigate("/dashboard");
+    } catch {
+      toast.error("Erro ao criar pedido. Tente novamente.");
+    }
+  };
+
+  const isLoading =
+    createOrderMutation.isPending || preferenceMutation.isPending;
+
+  const canConfirm =
+    isAuthenticated &&
+    items.length > 0 &&
+    subtotal > 0 &&
+    !isLoading &&
+    (deliveryType === "retirada" || freight !== null);
+
+  // Waiting for payment screen
   if (waitingOrderId) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--color-pitch)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "1rem",
-        }}
-      >
-        <div style={{ fontSize: "3rem" }}>⏳</div>
-        <p
-          className="font-display"
-          style={{ fontSize: "1.75rem", color: "var(--color-amber)" }}
-        >
-          AGUARDANDO PAGAMENTO
-        </p>
-        <p style={{ color: "var(--color-ash)" }}>Status: {pollStatus}</p>
-      </div>
+      <main className="flex min-h-screen flex-col items-center justify-center bg-ink px-4 text-gray-900">
+        <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold/10">
+            <svg
+              className="h-8 w-8 animate-spin text-gold"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+          </div>
+          <h1 className="mt-5 font-display text-2xl text-gold">
+            {t("CHECKOUT_WAITING_TITLE", "Aguardando pagamento")}
+          </h1>
+          <p className="mt-2 text-sm text-smoke">
+            {t(
+              "CHECKOUT_WAITING_DESC",
+              "A página do Mercado Pago foi aberta em outra aba. Conclua o pagamento por lá e aguarde a confirmação aqui.",
+            )}
+          </p>
+          <p className="mt-4 rounded-xl bg-gray-50 px-4 py-2 font-mono text-xs text-smoke">
+            Pedido: #{waitingOrderId.slice(-8).toUpperCase()}
+          </p>
+          <p className="mt-3 text-xs text-smoke">
+            {t(
+              "CHECKOUT_WAITING_UPDATE",
+              "Esta página atualiza automaticamente a cada poucos segundos.",
+            )}
+          </p>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-pitch)" }}>
-      <Navbar />
-
-      <div
-        style={{ maxWidth: "900px", margin: "0 auto", padding: "2rem 1.5rem" }}
-      >
-        <h1
-          className="font-display"
-          style={{
-            fontSize: "2.5rem",
-            color: "var(--color-amber)",
-            marginBottom: "2rem",
-          }}
+    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-6 text-gray-900 sm:px-6">
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-800"
         >
-          FINALIZAR PEDIDO
-        </h1>
+          {t("BTN_BACK", "← Voltar")}
+        </button>
+        <h1 className="font-display text-3xl text-gold">Checkout</h1>
+      </div>
 
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem" }}
-        >
-          {/* Left column */}
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
-          >
-            {/* Delivery type */}
-            <div className="card" style={{ padding: "1.25rem" }}>
-              <h3
-                style={{
-                  margin: "0 0 1rem",
-                  fontWeight: 700,
-                  color: "var(--color-chalk)",
-                }}
-              >
-                Como quer receber?
-              </h3>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "0.625rem",
-                }}
-              >
-                {[
-                  {
-                    key: "entrega",
-                    label: "🛵 Entrega",
-                    desc: "Receba em casa",
-                  },
-                  {
-                    key: "retirada",
-                    label: "🏪 Retirada",
-                    desc: "Retire no balcão",
-                  },
-                ].map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setDeliveryType(opt.key)}
-                    style={{
-                      padding: "1rem",
-                      borderRadius: "0.75rem",
-                      cursor: "pointer",
-                      border: "2px solid",
-                      borderColor:
-                        deliveryType === opt.key
-                          ? "var(--color-amber)"
-                          : "var(--color-smoke)",
-                      background:
-                        deliveryType === opt.key
-                          ? "rgba(245,166,35,0.08)"
-                          : "var(--color-steel)",
-                      textAlign: "center",
-                      transition: "all 0.2s",
-                      fontFamily: "var(--font-body)",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: "0 0 3px",
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        color:
-                          deliveryType === opt.key
-                            ? "var(--color-amber)"
-                            : "var(--color-chalk)",
-                      }}
-                    >
-                      {opt.label}
-                    </p>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "0.72rem",
-                        color: "var(--color-ash)",
-                      }}
-                    >
-                      {opt.desc}
-                    </p>
-                  </button>
-                ))}
+      {!items.length ? (
+        <p className="mt-6 rounded-2xl border border-gray-200 bg-gray-100 p-4 text-sm text-smoke">
+          {t("CHECKOUT_EMPTY", "Seu carrinho está vazio.")}
+        </p>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Left: Address + Freight */}
+          <section className="space-y-4">
+            <div className="rounded-3xl border border-gold/20 bg-white p-5">
+              {/* Tipo de entrega */}
+              <div className="mb-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType("entrega")}
+                  className={`flex-1 rounded-2xl border py-3 text-sm font-bold transition ${
+                    deliveryType === "entrega"
+                      ? "border-rosso bg-rosso text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  {t("CHECKOUT_DELIVERY", "🛵 Entrega")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType("retirada")}
+                  className={`flex-1 rounded-2xl border py-3 text-sm font-bold transition ${
+                    deliveryType === "retirada"
+                      ? "border-green-600 bg-green-600 text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  {t("CHECKOUT_PICKUP", "🏠 Retirada no local")}
+                </button>
               </div>
-            </div>
 
-            {/* Address (only for delivery) */}
-            {deliveryType === "entrega" && (
-              <div className="card" style={{ padding: "1.25rem" }}>
-                <h3
-                  style={{
-                    margin: "0 0 1rem",
-                    fontWeight: 700,
-                    color: "var(--color-chalk)",
-                  }}
-                >
-                  Endereço de entrega
-                </h3>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr auto",
-                      gap: "0.625rem",
-                    }}
-                  >
-                    <input
-                      className="input-dark"
-                      placeholder="CEP (00000-000)"
-                      value={cep}
-                      onChange={(e) => setCep(formatCep(e.target.value))}
-                    />
-                    <button
-                      type="button"
-                      onClick={fetchFreight}
-                      className="btn-ghost"
-                      style={{ padding: "0.75rem 1rem", whiteSpace: "nowrap" }}
-                      disabled={freightLoading}
-                    >
-                      {freightLoading ? "..." : "Calcular"}
-                    </button>
+              {deliveryType === "retirada" ? (
+                <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4 text-center">
+                  <p className="font-bold text-green-800">
+                    {t(
+                      "CHECKOUT_PICKUP_FREE",
+                      "Retirada no local — Frete grátis",
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs text-green-700">
+                    Av. Cachoeira Paulista, 17 — CEP 03551-000, São Paulo
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h2 className="font-display text-xl text-gold">
+                    {t("CHECKOUT_ADDRESS_TITLE", "Endereço de Entrega")}
+                  </h2>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {/* CEP */}
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_CEP", "CEP")} *
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="00000-000"
+                        value={cep}
+                        onChange={handleCepChange}
+                        maxLength={9}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Número */}
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_NUMBER", "Número")} *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 123"
+                        value={numero}
+                        onChange={(e) => {
+                          setNumero(e.target.value);
+                          setFreight(null);
+                        }}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Rua */}
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_STREET", "Rua")}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Preenchido automaticamente pelo CEP"
+                        value={rua}
+                        onChange={(e) => setRua(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Complemento */}
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_COMPLEMENT", "Complemento")}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Apto, bloco, casa..."
+                        value={complemento}
+                        onChange={(e) => setComplemento(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Bairro */}
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_NEIGHBORHOOD", "Bairro")}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Preenchido pelo CEP"
+                        value={bairro}
+                        onChange={(e) => setBairro(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Referência */}
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_REFERENCE", "Ponto de referência")}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: próximo ao mercado, portão azul..."
+                        value={referencia}
+                        onChange={(e) => setReferencia(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Obs */}
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-semibold text-gray-600">
+                        {t("CHECKOUT_NOTES_LABEL", "Observações do pedido")}
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Ex: sem cebola, borda recheada..."
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-gold/60 focus:outline-none"
+                      />
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "2fr 1fr",
-                      gap: "0.625rem",
-                    }}
+
+                  {/* Calculate freight */}
+                  <button
+                    type="button"
+                    disabled={freightLoading}
+                    onClick={calculateFreight}
+                    className="mt-4 w-full rounded-2xl bg-rosso py-3 text-sm font-bold text-white transition hover:bg-ember disabled:opacity-50"
                   >
-                    <input
-                      className="input-dark"
-                      placeholder="Rua / Av."
-                      value={rua}
-                      onChange={(e) => setRua(e.target.value)}
-                    />
-                    <input
-                      className="input-dark"
-                      placeholder="Número"
-                      value={numero}
-                      onChange={(e) => setNumero(e.target.value)}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "0.625rem",
-                    }}
-                  >
-                    <input
-                      className="input-dark"
-                      placeholder="Bairro"
-                      value={bairro}
-                      onChange={(e) => setBairro(e.target.value)}
-                    />
-                    <input
-                      className="input-dark"
-                      placeholder="Cidade"
-                      value={cidade}
-                      onChange={(e) => setCidade(e.target.value)}
-                    />
-                  </div>
-                  <input
-                    className="input-dark"
-                    placeholder="Complemento (opcional)"
-                    value={complemento}
-                    onChange={(e) => setComplemento(e.target.value)}
-                  />
+                    {freightLoading
+                      ? t("BTN_CALC_FREIGHT_LOADING", "Calculando frete...")
+                      : t("BTN_CALC_FREIGHT", "Calcular Frete 🛵")}
+                  </button>
 
                   {freightError && (
-                    <p
-                      style={{
-                        color: "var(--color-danger)",
-                        fontSize: "0.8rem",
-                        margin: 0,
-                      }}
-                    >
+                    <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {freightError}
                     </p>
                   )}
+
                   {freight && (
-                    <div
-                      style={{
-                        background: "rgba(245,166,35,0.08)",
-                        border: "1px solid rgba(245,166,35,0.3)",
-                        borderRadius: "0.625rem",
-                        padding: "0.75rem",
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: "0 0 2px",
-                          fontSize: "0.8rem",
-                          color: "var(--color-chalk)",
-                        }}
-                      >
-                        Distância: {freight.distanciaKm} km — Tempo estimado:{" "}
-                        {freight.tempoEstimado}
+                    <div className="mt-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
+                      <p className="text-sm font-bold text-green-800">
+                        Frete: {freight.valorFrete}
+                      </p>
+                      <p className="mt-0.5 text-xs text-green-700">
+                        Distância: {freight.distanciaKm} km · Tempo estimado: ~
+                        {freight.tempoEstimado} min
                       </p>
                       <p
-                        style={{
-                          margin: 0,
-                          fontWeight: 700,
-                          color: "var(--color-amber)",
-                        }}
+                        className="mt-0.5 text-xs text-green-600 line-clamp-1"
+                        title={freight.displayName}
                       >
-                        Frete: {freight.valorFreteFormatado}
+                        📍 {freight.displayName}
                       </p>
                     </div>
                   )}
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Right: Summary + Payment */}
+          <section className="space-y-4">
+            <div className="rounded-3xl border border-gold/20 bg-white p-5">
+              <h2 className="font-display text-xl text-gold">Resumo</h2>
+              <ul className="mt-4 space-y-2 text-sm">
+                {items.map((item) => (
+                  <li
+                    key={item.key}
+                    className="flex items-start justify-between gap-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-smoke">{item.description}</p>
+                    </div>
+                    <p className="shrink-0 font-semibold text-gold">
+                      x{item.quantity}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 border-t border-gray-100 pt-4 space-y-1 text-sm">
+                <div className="flex justify-between text-smoke">
+                  <span>Subtotal</span>
+                  <span>{currency(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-smoke">
+                  <span>Frete</span>
+                  <span
+                    className={
+                      effectiveFreight ? "font-semibold text-green-700" : ""
+                    }
+                  >
+                    {deliveryType === "retirada"
+                      ? "R$ 0,00"
+                      : freight
+                        ? freight.valorFrete
+                        : "— calcule o frete"}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 text-base font-bold text-gold">
+                  <span>Total</span>
+                  <span>{currency(totalWithFreight)}</span>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* Coupon */}
-            <div className="card" style={{ padding: "1.25rem" }}>
-              <h3
-                style={{
-                  margin: "0 0 1rem",
-                  fontWeight: 700,
-                  color: "var(--color-chalk)",
-                }}
-              >
-                Cupom de desconto
-              </h3>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: "0.625rem",
-                }}
-              >
-                <input
-                  className="input-dark"
-                  placeholder="Código do cupom"
-                  value={couponCode}
-                  onChange={(e) => {
-                    setCouponCode(e.target.value.toUpperCase());
-                    setCoupon(null);
-                    setCouponError("");
-                  }}
-                  disabled={!!coupon}
-                />
+            <div className="rounded-3xl border border-gold/20 bg-white p-5">
+              <h2 className="font-display text-xl text-gold">Pagamento</h2>
+              <div className="mt-3 flex rounded-2xl border border-gray-200 bg-gray-50 p-1">
                 <button
                   type="button"
-                  onClick={validateCoupon}
-                  className={coupon ? "btn-ghost" : "btn-amber"}
-                  style={{ padding: "0.75rem 1rem" }}
-                  disabled={!!coupon}
+                  onClick={() => setPaymentMode("online")}
+                  className={`flex-1 rounded-xl py-3 text-sm font-semibold transition ${
+                    paymentMode === "online"
+                      ? "bg-rosso text-white shadow"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
                 >
-                  {coupon ? "✓" : "Aplicar"}
+                  💳 Pagar Online
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("presencial")}
+                  className={`flex-1 rounded-xl py-3 text-sm font-semibold transition ${
+                    paymentMode === "presencial"
+                      ? "bg-white text-gray-900 shadow"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  💵 Pagar na Entrega
                 </button>
               </div>
-              {couponError && (
-                <p
-                  style={{
-                    color: "var(--color-danger)",
-                    fontSize: "0.8rem",
-                    margin: "0.5rem 0 0",
-                  }}
-                >
-                  {couponError}
-                </p>
-              )}
-              {coupon && (
-                <p
-                  style={{
-                    color: "var(--color-ok)",
-                    fontSize: "0.8rem",
-                    margin: "0.5rem 0 0",
-                  }}
-                >
-                  ✓ Desconto de{" "}
-                  {coupon.type === "PERCENTUAL"
-                    ? `${coupon.value}%`
-                    : fmt(coupon.value)}{" "}
-                  aplicado
-                </p>
+
+              {paymentMode === "online" ? (
+                <div className="mt-3 rounded-2xl border border-gold/20 bg-gray-50 p-4">
+                  <img
+                    src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/6.6.71/mercadopago/logo__large@2x.png"
+                    alt="Mercado Pago"
+                    className="h-5 w-auto"
+                  />
+                  <ul className="mt-3 space-y-1 text-xs text-smoke">
+                    <li>✅ Pix, crédito, débito aceitos</li>
+                    <li>✅ Preparo inicia automaticamente após confirmação</li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+                  <p className="text-xs font-bold text-amber-800">
+                    ⚠️ O preparo só inicia após confirmação do pagamento pela
+                    equipe.
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Aceitos: dinheiro, cartão na maquininha.
+                  </p>
+                </div>
               )}
             </div>
 
-            {/* Payment method */}
-            <div className="card" style={{ padding: "1.25rem" }}>
-              <h3
-                style={{
-                  margin: "0 0 1rem",
-                  fontWeight: 700,
-                  color: "var(--color-chalk)",
-                }}
-              >
-                Forma de pagamento
-              </h3>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                }}
-              >
-                {[
-                  {
-                    key: "online",
-                    label: "💳 Online (Mercado Pago)",
-                    desc: "Pix, cartão, débito",
-                  },
-                  { key: "cash", label: "💵 Dinheiro na entrega", desc: "" },
-                  {
-                    key: "card_machine",
-                    label: "📲 Maquininha na entrega",
-                    desc: "",
-                  },
-                ].map((opt) => (
-                  <label
-                    key={opt.key}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      padding: "0.875rem 1rem",
-                      borderRadius: "0.75rem",
-                      cursor: "pointer",
-                      border: `2px solid ${paymentMode === opt.key ? "var(--color-amber)" : "var(--color-smoke)"}`,
-                      background:
-                        paymentMode === opt.key
-                          ? "rgba(245,166,35,0.08)"
-                          : "var(--color-steel)",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value={opt.key}
-                      checked={paymentMode === opt.key}
-                      onChange={() => setPaymentMode(opt.key)}
-                      style={{ accentColor: "var(--color-amber)" }}
-                    />
-                    <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontWeight: 600,
-                          fontSize: "0.875rem",
-                          color:
-                            paymentMode === opt.key
-                              ? "var(--color-amber)"
-                              : "var(--color-chalk)",
-                        }}
-                      >
-                        {opt.label}
-                      </p>
-                      {opt.desc && (
-                        <p
-                          style={{
-                            margin: "2px 0 0",
-                            fontSize: "0.72rem",
-                            color: "var(--color-ash)",
-                          }}
-                        >
-                          {opt.desc}
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="card" style={{ padding: "1.25rem" }}>
-              <h3
-                style={{
-                  margin: "0 0 0.75rem",
-                  fontWeight: 700,
-                  color: "var(--color-chalk)",
-                }}
-              >
-                Observações gerais
-              </h3>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Observações para o pedido (ex: interfone 123)..."
-                maxLength={1000}
-                style={{
-                  width: "100%",
-                  background: "var(--color-steel)",
-                  border: "1px solid var(--color-smoke)",
-                  borderRadius: "0.75rem",
-                  padding: "0.75rem 1rem",
-                  color: "var(--color-chalk)",
-                  fontSize: "0.875rem",
-                  resize: "none",
-                  height: "80px",
-                  outline: "none",
-                  fontFamily: "var(--font-body)",
-                  boxSizing: "border-box",
-                }}
-                onFocus={(e) =>
-                  (e.target.style.borderColor = "var(--color-amber)")
-                }
-                onBlur={(e) =>
-                  (e.target.style.borderColor = "var(--color-smoke)")
-                }
-              />
-            </div>
-          </div>
-
-          {/* Order summary (sticky on desktop) */}
-          <div>
-            <div
-              className="card"
-              style={{ padding: "1.25rem", position: "sticky", top: "80px" }}
+            <button
+              type="button"
+              disabled={!canConfirm}
+              onClick={
+                paymentMode === "online"
+                  ? handleOnlineCheckout
+                  : handlePresencialCheckout
+              }
+              className="w-full rounded-2xl bg-rosso px-5 py-4 text-base font-bold text-white shadow-md transition hover:bg-ember disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <h3
-                style={{
-                  margin: "0 0 1rem",
-                  fontWeight: 700,
-                  color: "var(--color-chalk)",
-                }}
-              >
-                Resumo do Pedido
-              </h3>
-
-              {/* Items */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                {items.map((item) => (
-                  <div
-                    key={item.key}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    <span style={{ color: "var(--color-ash)" }}>
-                      {item.quantity}× {item.name}
-                      {item.meatDoneness && (
-                        <span
-                          style={{
-                            color: "var(--color-amber)",
-                            marginLeft: "4px",
-                          }}
-                        >
-                          ({item.meatDoneness.replace("_", " ")})
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      style={{ color: "var(--color-chalk)", fontWeight: 600 }}
-                    >
-                      {fmt(item.unitPrice * item.quantity)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                style={{
-                  borderTop: "1px solid var(--color-smoke)",
-                  paddingTop: "0.875rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  <span style={{ color: "var(--color-ash)" }}>Subtotal</span>
-                  <span style={{ color: "var(--color-chalk)" }}>
-                    {fmt(subtotal)}
-                  </span>
-                </div>
-                {discount > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    <span style={{ color: "var(--color-ok)" }}>Desconto</span>
-                    <span style={{ color: "var(--color-ok)" }}>
-                      − {fmt(discount)}
-                    </span>
-                  </div>
-                )}
-                {deliveryType === "entrega" && (
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    <span style={{ color: "var(--color-ash)" }}>Frete</span>
-                    <span
-                      style={{
-                        color:
-                          deliveryFee === 0
-                            ? "var(--color-ok)"
-                            : "var(--color-chalk)",
-                      }}
-                    >
-                      {deliveryFee === 0 && !freight
-                        ? "a calcular"
-                        : fmt(deliveryFee)}
-                    </span>
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontWeight: 800,
-                    fontSize: "1.1rem",
-                    marginTop: "0.5rem",
-                    borderTop: "1px solid var(--color-smoke)",
-                    paddingTop: "0.75rem",
-                  }}
-                >
-                  <span style={{ color: "var(--color-chalk)" }}>Total</span>
-                  <span style={{ color: "var(--color-amber)" }}>
-                    {fmt(total)}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => createOrder.mutate()}
-                className="btn-amber"
-                disabled={
-                  createOrder.isPending || (deliveryType === "entrega" && !cep)
-                }
-                style={{
-                  width: "100%",
-                  padding: "1rem",
-                  fontSize: "1rem",
-                  marginTop: "1rem",
-                }}
-              >
-                {createOrder.isPending
-                  ? "Processando..."
-                  : `Confirmar Pedido • ${fmt(total)}`}
-              </button>
-
-              {deliveryType === "entrega" && !cep && (
-                <p
-                  style={{
-                    color: "var(--color-ash)",
-                    fontSize: "0.75rem",
-                    textAlign: "center",
-                    marginTop: "0.5rem",
-                  }}
-                >
-                  Informe o CEP para continuar
-                </p>
-              )}
-            </div>
-          </div>
+              {isLoading
+                ? "Processando..."
+                : paymentMode === "online"
+                  ? "Pagar com Mercado Pago →"
+                  : "Confirmar Pedido →"}
+            </button>
+          </section>
         </div>
-      </div>
-    </div>
+      )}
+    </main>
   );
 }
+
+export default CheckoutPage;

@@ -1,231 +1,422 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
+import { useTranslation } from "../context/I18nContext.jsx";
 
-const fmt = (v) =>
-  Number(v ?? 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-
-const EMPTY_PRODUCT = {
+const emptyForm = () => ({
   name: "",
   description: "",
-  price: "",
-  category: "Hambúrgueres",
   imageUrl: "",
-  isBurger: true,
-  isActive: true,
-  ingredients: "",
+  category: "",
+  price: "",
+  stock: "",
+});
+
+// ── Tradução automática de produtos ──────────────────────────────────────────
+const I18N_URL =
+  import.meta.env.VITE_I18N_URL ||
+  "https://tradudor-i8n-languages.onrender.com";
+const I18N_SISTEMA = "website";
+const ALL_LOCALES = ["pt-BR", "pt-PT", "en-US", "it-IT", "es-ES", "ar-MA"];
+const LOCALE_LABELS = {
+  "pt-BR": "Portugues (Brasil)",
+  "pt-PT": "Portugues (Portugal)",
+  "en-US": "English",
+  "it-IT": "Italiano",
+  "es-ES": "Espanol",
+  "ar-MA": "Arabic",
 };
 
-const CATEGORIES = [
-  "Hambúrgueres",
-  "Acompanhamentos",
-  "Bebidas",
-  "Sobremesas",
-  "Outros",
-];
+function isDebugEnabled() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("i18n_debug") === "1";
+}
 
-function ProductFormModal({ initial, onClose, onSave }) {
-  const [form, setForm] = useState(initial ?? EMPTY_PRODUCT);
-  const set = (field) => (e) =>
-    setForm((p) => ({ ...p, [field]: e.target.value }));
-  const toggle = (field) => () =>
-    setForm((p) => ({ ...p, [field]: !p[field] }));
+function debugLog(...args) {
+  if (isDebugEnabled()) {
+    console.log("[I18N_DEBUG][AdminProducts]", ...args);
+  }
+}
 
-  const handleSubmit = (e) => {
+function normalizeCategoryKey(cat) {
+  return `CAT_${(cat ?? "GERAL")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")}`;
+}
+
+function tProductField(t, productId, field, fallback) {
+  const id = String(productId ?? "");
+  const lowerKey = `PRODUCT_${id}_${field}`;
+  const upperKey = `PRODUCT_${id.toUpperCase()}_${field}`;
+  const upperValue = t(upperKey, fallback);
+  const resolved = t(lowerKey, upperValue);
+  debugLog("tProductField", {
+    productId: id,
+    field,
+    lowerKey,
+    upperKey,
+    resolved,
+    fallback,
+  });
+  return resolved;
+}
+
+async function saveProductTranslations(
+  id,
+  name,
+  description,
+  category,
+  baseLocale = "pt-BR",
+) {
+  console.log("[REAPPLY] Iniciando tradução para produto:", {
+    id,
+    name,
+    baseLocale,
+  });
+  debugLog("saveProductTranslations:request", {
+    endpoint: `${I18N_URL}/traducoes/produto-auto`,
+    id,
+    name,
+    description,
+    category,
+    baseLocale,
+  });
+
+  const res = await fetch(`${I18N_URL}/traducoes/produto-auto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      productId: id,
+      name,
+      description,
+      category,
+      baseLocale,
+      sistema: I18N_SISTEMA,
+    }),
+  });
+
+  console.log("[REAPPLY] Response status:", res.status);
+
+  if (!res.ok) {
+    console.error(
+      "[REAPPLY] Erro - Response não OK:",
+      res.status,
+      res.statusText,
+    );
+    return { total: 0, succeeded: 0, failed: 0 };
+  }
+
+  const data = await res.json();
+  console.log("[REAPPLY] Response data:", data);
+  debugLog("saveProductTranslations:response", data);
+
+  const total = Number(data?.resumo?.totalSalvos ?? 0);
+  const succeeded = total;
+
+  console.log("[REAPPLY] Total translations:", total);
+
+  return {
+    total,
+    succeeded,
+    failed: 0,
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ProductModal({ product, onClose, existingCategories = [] }) {
+  const { t, refreshTranslations, invalidateCache } = useTranslation();
+  const queryClient = useQueryClient();
+  const isEdit = !!product;
+  const [translationBaseLocale, setTranslationBaseLocale] = useState("pt-BR");
+
+  const [form, setForm] = useState(() => {
+    if (!isEdit) return emptyForm();
+    return {
+      name: product.name,
+      description: product.description ?? "",
+      imageUrl: product.imageUrl ?? "",
+      category: product.category ?? "",
+      price: product.price != null ? String(product.price) : "",
+      stock: product.stock != null ? String(product.stock) : "",
+    };
+  });
+
+  const [errors, setErrors] = useState({});
+
+  const mutation = useMutation({
+    mutationFn: async (payload) => {
+      if (isEdit) {
+        const res = await api.put(`/admin/products/${product.id}`, payload);
+        return res.data;
+      }
+      const res = await api.post("/admin/products", payload);
+      return res.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+      toast.success(
+        isEdit
+          ? t("ADMIN_PRODUCTS_UPDATED", "Produto atualizado!")
+          : t("ADMIN_PRODUCTS_CREATED", "Produto criado!"),
+      );
+      // Salva traduções no banco i18n (fire-and-forget, não bloqueia o admin)
+      const saved = result?.data ?? result;
+      if (saved?.id) {
+        saveProductTranslations(
+          saved.id,
+          saved.name,
+          saved.description,
+          saved.category,
+          translationBaseLocale,
+        ).then(() => {
+          invalidateCache?.(translationBaseLocale);
+          refreshTranslations?.();
+        });
+      }
+      onClose();
+    },
+    onError: (err) => {
+      toast.error(
+        err?.response?.data?.message ??
+          t("ADMIN_PRODUCTS_SAVE_ERROR", "Erro ao salvar produto"),
+      );
+    },
+  });
+
+  const validate = () => {
+    const errs = {};
+    if (!form.name.trim()) errs.name = "Nome obrigatório";
+    if (
+      form.price === "" ||
+      isNaN(Number(form.price)) ||
+      Number(form.price) <= 0
+    ) {
+      errs.price = "Preço inválido";
+    }
+    if (
+      form.stock !== "" &&
+      (isNaN(Number(form.stock)) || Number(form.stock) < 0)
+    ) {
+      errs.stock = "Estoque inválido";
+    }
+    if (form.imageUrl && !/^https?:\/\/.+/.test(form.imageUrl))
+      errs.imageUrl = "URL inválida (deve começar com http)";
+    setErrors(errs);
+    return !Object.keys(errs).length;
+  };
+
+  const onSubmit = (e) => {
     e.preventDefault();
-    onSave({
-      ...form,
-      price: parseFloat(form.price),
-      isBurger: Boolean(form.isBurger),
-      isActive: Boolean(form.isActive),
-      ingredients: form.ingredients
-        ? form.ingredients
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
-    });
+    if (!validate()) return;
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      imageUrl: form.imageUrl.trim() || undefined,
+      category: form.category.trim() || undefined,
+      price: Number(form.price),
+      ...(form.stock !== "" ? { stock: Number(form.stock) } : {}),
+    };
+    mutation.mutate(payload);
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-      }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        className="card"
-        style={{
-          width: "100%",
-          maxWidth: "540px",
-          padding: "1.5rem",
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
-      >
-        <h2
-          style={{
-            margin: "0 0 1.25rem",
-            fontWeight: 800,
-            color: "var(--color-chalk)",
-          }}
-        >
-          {initial?.id ? "Editar Produto" : "Novo Produto"}
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4">
+      <div className="fixed inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative z-10 my-auto w-full max-w-lg rounded-3xl border border-gold/20 bg-white p-6 shadow-2xl">
+        <h2 className="font-display text-2xl text-gold">
+          {isEdit
+            ? t("ADMIN_PRODUCTS_EDIT_TITLE", "Editar Produto")
+            : t("ADMIN_PRODUCTS_NEW_TITLE", "Novo Produto")}
         </h2>
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-        >
-          <input
-            className="input-dark"
-            placeholder="Nome do produto *"
-            value={form.name}
-            onChange={set("name")}
-            required
-          />
-          <textarea
-            value={form.description}
-            onChange={set("description")}
-            placeholder="Descrição"
-            style={{
-              background: "var(--color-steel)",
-              border: "1px solid var(--color-smoke)",
-              borderRadius: "0.75rem",
-              padding: "0.75rem 1rem",
-              color: "var(--color-chalk)",
-              fontSize: "0.875rem",
-              resize: "none",
-              height: "80px",
-              outline: "none",
-              fontFamily: "var(--font-body)",
-            }}
-          />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.625rem",
-            }}
-          >
+
+        <form onSubmit={onSubmit} className="mt-5 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_NAME_LABEL", "Nome *")}
+            </label>
             <input
-              className="input-dark"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Preço (R$) *"
-              value={form.price}
-              onChange={set("price")}
-              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              className="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 outline-none focus:border-gold/50"
+              placeholder={t(
+                "ADMIN_PRODUCTS_NAME_PLACEHOLDER",
+                "Ex: Calabresa Imperial",
+              )}
             />
-            <select
+            {errors.name && (
+              <p className="mt-1 text-xs text-red-400">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_DESCRIPTION_LABEL", "Descrição")}
+            </label>
+            <textarea
+              value={form.description}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
+              rows={2}
+              className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 outline-none focus:border-gold/50"
+              placeholder={t(
+                "ADMIN_PRODUCTS_DESCRIPTION_PLACEHOLDER",
+                "Breve descrição do sabor...",
+              )}
+            />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_CATEGORY_LABEL", "Categoria")}
+            </label>
+            <input
+              list="category-options"
               value={form.category}
-              onChange={set("category")}
-              style={{
-                background: "var(--color-steel)",
-                border: "1px solid var(--color-smoke)",
-                borderRadius: "0.75rem",
-                padding: "0.75rem 1rem",
-                color: "var(--color-chalk)",
-                fontSize: "0.875rem",
-                outline: "none",
-                fontFamily: "var(--font-body)",
-              }}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, category: e.target.value }))
+              }
+              className="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 outline-none focus:border-gold/50"
+              placeholder={t(
+                "ADMIN_PRODUCTS_CATEGORY_PLACEHOLDER",
+                "Ex: Doce, Salgado, Bebidas...",
+              )}
+            />
+            <datalist id="category-options">
+              {existingCategories.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* Translation base language */}
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_BASE_LANGUAGE", "Idioma base do cadastro")}
+            </label>
+            <select
+              value={translationBaseLocale}
+              onChange={(e) => setTranslationBaseLocale(e.target.value)}
+              className="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 outline-none focus:border-gold/50"
             >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {ALL_LOCALES.map((loc) => (
+                <option key={loc} value={loc}>
+                  {LOCALE_LABELS[loc] ?? loc}
                 </option>
               ))}
             </select>
-          </div>
-          <input
-            className="input-dark"
-            placeholder="URL da imagem"
-            value={form.imageUrl}
-            onChange={set("imageUrl")}
-          />
-          <input
-            className="input-dark"
-            placeholder="Ingredientes (separados por vírgula)"
-            value={form.ingredients}
-            onChange={set("ingredients")}
-          />
-          <div style={{ display: "flex", gap: "1rem" }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                color: "var(--color-chalk)",
-                fontSize: "0.875rem",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={form.isBurger}
-                onChange={toggle("isBurger")}
-                style={{
-                  accentColor: "var(--color-amber)",
-                  width: "16px",
-                  height: "16px",
-                }}
-              />
-              É hambúrguer?
-            </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                color: "var(--color-chalk)",
-                fontSize: "0.875rem",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={toggle("isActive")}
-                style={{
-                  accentColor: "var(--color-amber)",
-                  width: "16px",
-                  height: "16px",
-                }}
-              />
-              Ativo?
-            </label>
+            <p className="mt-1 text-xs text-smoke">
+              {t(
+                "ADMIN_PRODUCTS_BASE_LANGUAGE_HINT",
+                "O texto digitado sera salvo neste idioma e replicado automaticamente para os outros.",
+              )}
+            </p>
           </div>
 
-          <div
-            style={{ display: "flex", gap: "0.625rem", marginTop: "0.5rem" }}
-          >
-            <button
-              type="submit"
-              className="btn-amber"
-              style={{ flex: 1, padding: "0.875rem" }}
-            >
-              Salvar
-            </button>
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_TYPE_LABEL", "Tipo do produto")}
+            </label>
+            {/* Hamburgueria: no pizza type selector needed */}
+          </div>
+
+          {/* Image URL */}
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+              {t("ADMIN_PRODUCTS_IMAGE_URL", "URL da Imagem")}
+            </label>
+            <input
+              value={form.imageUrl}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, imageUrl: e.target.value }))
+              }
+              className="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 outline-none focus:border-gold/50"
+              placeholder="https://..."
+            />
+            {errors.imageUrl && (
+              <p className="mt-1 text-xs text-red-400">{errors.imageUrl}</p>
+            )}
+            {form.imageUrl && !errors.imageUrl && (
+              <img
+                src={form.imageUrl}
+                alt="preview"
+                className="mt-2 h-20 w-full rounded-2xl object-cover"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            )}
+          </div>
+
+          {/* Price + Stock */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+                {t("ADMIN_PRODUCTS_SALE_PRICE", "Preço *")}
+              </label>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-smoke">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.price}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, price: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gold/50"
+                  placeholder="0,00"
+                />
+              </div>
+              {errors.price && (
+                <p className="mt-0.5 text-xs text-red-400">{errors.price}</p>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+                {t("ADMIN_PRODUCTS_STOCK", "Estoque")}
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={form.stock}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, stock: e.target.value }))
+                }
+                className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gold/50"
+                placeholder="(opcional)"
+              />
+              {errors.stock && (
+                <p className="mt-0.5 text-xs text-red-400">{errors.stock}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="btn-ghost"
-              style={{ flex: 1, padding: "0.875rem" }}
+              className="flex-1 rounded-2xl border border-gray-200 py-3 text-sm text-smoke transition hover:border-gray-400"
             >
-              Cancelar
+              {t("BTN_CANCEL", "Cancelar")}
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="flex-1 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 py-3 text-sm font-bold text-[#11161d] transition hover:opacity-90 disabled:opacity-50"
+            >
+              {mutation.isPending
+                ? t("ADMIN_PRODUCTS_SAVING", "Salvando...")
+                : isEdit
+                  ? t("BTN_SAVE", "Salvar")
+                  : t("ADMIN_PRODUCTS_CREATE", "Criar")}
             </button>
           </div>
         </form>
@@ -234,13 +425,214 @@ function ProductFormModal({ initial, onClose, onSave }) {
   );
 }
 
-export default function AdminProductsPage() {
+function ProductCard({ product, onEdit }) {
+  const { t, locale, refreshTranslations } = useTranslation();
   const queryClient = useQueryClient();
-  const [modal, setModal] = useState(null); // null | { product? }
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("todos");
+  const productName = tProductField(t, product.id, "NAME", product.name);
+  const productDescription = product.description
+    ? tProductField(t, product.id, "DESC", product.description)
+    : null;
+  const translatedCategory = product.category
+    ? t(normalizeCategoryKey(product.category), product.category)
+    : null;
 
-  const { data: products = [], isLoading } = useQuery({
+  useEffect(() => {
+    debugLog("productCard:render", {
+      locale,
+      productId: product.id,
+      originalName: product.name,
+      translatedName: productName,
+      translatedDescription: productDescription,
+    });
+  }, [locale, product.id, product.name, productName, productDescription]);
+
+  const toggleActive = useMutation({
+    mutationFn: async () => {
+      if (product.isActive) {
+        await api.delete(`/admin/products/${product.id}`);
+      } else {
+        await api.patch(`/admin/products/${product.id}/restore`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+      toast.success(
+        product.isActive
+          ? t("ADMIN_PRODUCTS_DISABLED", "Produto desativado")
+          : t("ADMIN_PRODUCTS_RESTORED", "Produto reativado"),
+      );
+    },
+    onError: () =>
+      toast.error(t("ADMIN_PRODUCTS_STATUS_ERROR", "Falha ao alterar status")),
+  });
+
+  const reapplyTranslations = useMutation({
+    mutationFn: async () => {
+      const baseLocale = "pt-BR";
+      console.log(
+        "[MUTATION] Iniciando reapplyTranslations com baseLocale:",
+        baseLocale,
+      );
+
+      const summary = await saveProductTranslations(
+        product.id,
+        product.name,
+        product.description,
+        product.category,
+        baseLocale,
+      );
+
+      console.log("[MUTATION] Summary retornado:", summary);
+
+      if (!summary.total || summary.succeeded === 0) {
+        console.error("[MUTATION] Erro - summary.total é 0 ou falsy");
+        throw new Error("Translation sync failed");
+      }
+
+      console.log("[MUTATION] Sucesso - total:", summary.total);
+      return summary;
+    },
+    onSuccess: ({ succeeded, failed }) => {
+      console.log(
+        "[MUTATION SUCCESS] succeeded:",
+        succeeded,
+        "failed:",
+        failed,
+      );
+      refreshTranslations?.();
+      if (failed > 0) {
+        toast.success(
+          t(
+            "ADMIN_PRODUCTS_REAPPLY_TRANSLATION_PARTIAL",
+            "Traducoes reaplicadas parcialmente ({{ok}} OK, {{fail}} falharam).",
+          )
+            .replace("{{ok}}", String(succeeded))
+            .replace("{{fail}}", String(failed)),
+        );
+        return;
+      }
+      toast.success(
+        t(
+          "ADMIN_PRODUCTS_REAPPLY_TRANSLATION_SUCCESS",
+          "Traducoes reaplicadas com sucesso.",
+        ),
+      );
+    },
+    onError: (error) => {
+      console.error("[MUTATION ERROR]", error);
+      toast.error(
+        t(
+          "ADMIN_PRODUCTS_REAPPLY_TRANSLATION_ERROR",
+          "Falha ao reaplicar traducoes.",
+        ),
+      );
+    },
+  });
+
+  return (
+    <article
+      className={`rounded-2xl border p-4 transition-all duration-200 ${
+        product.isActive
+          ? "border-gray-200 bg-lacquer/70"
+          : "border-gray-100 bg-gray-50 opacity-50"
+      }`}
+    >
+      {product.imageUrl ? (
+        <img
+          src={product.imageUrl}
+          alt={productName}
+          className="mb-3 h-32 w-full rounded-xl object-cover"
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
+      ) : (
+        <div className="mb-3 flex h-32 w-full items-center justify-center rounded-xl bg-gray-100 text-3xl">
+          �
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-gray-900">
+            {productName}
+          </h3>
+          {productDescription && (
+            <p className="mt-0.5 line-clamp-2 text-xs text-smoke">
+              {productDescription}
+            </p>
+          )}
+        </div>
+        <span
+          className={`shrink-0 rounded-xl px-2 py-1 text-xs font-bold ${
+            product.isActive
+              ? "bg-green-500/20 text-green-400"
+              : "bg-gray-200 text-smoke"
+          }`}
+        >
+          {product.isActive
+            ? t("ADMIN_PRODUCTS_ACTIVE", "Ativo")
+            : t("ADMIN_PRODUCTS_INACTIVE", "Inativo")}
+        </span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {product.price != null && (
+          <span className="rounded-xl bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+            R$ {Number(product.price).toFixed(2)}
+          </span>
+        )}
+        {translatedCategory ? (
+          <span className="rounded-xl bg-gray-200 px-2 py-0.5 text-xs text-smoke">
+            {translatedCategory}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(product)}
+          className="rounded-2xl border border-gold/30 py-2 text-xs font-semibold text-gold transition hover:bg-gold/10"
+        >
+          {t("EDIT", "Editar")}
+        </button>
+        <button
+          type="button"
+          disabled={reapplyTranslations.isPending}
+          onClick={() => reapplyTranslations.mutate()}
+          className="rounded-2xl border border-sky-400/30 py-2 text-xs font-semibold text-sky-600 transition hover:bg-sky-500/10 disabled:opacity-50"
+        >
+          {reapplyTranslations.isPending
+            ? t("ADMIN_PRODUCTS_REAPPLY_TRANSLATION_LOADING", "Reaplicando...")
+            : t("ADMIN_PRODUCTS_REAPPLY_TRANSLATION", "Reaplicar traducao")}
+        </button>
+        <button
+          type="button"
+          disabled={toggleActive.isPending}
+          onClick={() => toggleActive.mutate()}
+          className={`rounded-2xl border py-2 text-xs font-semibold transition ${
+            product.isActive
+              ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
+              : "border-green-500/30 text-green-400 hover:bg-green-500/10"
+          } disabled:opacity-50`}
+        >
+          {product.isActive
+            ? t("ADMIN_PRODUCTS_DISABLE", "Desativar")
+            : t("ADMIN_PRODUCTS_RESTORE", "Reativar")}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function AdminProductsPage() {
+  const { t } = useTranslation();
+  const [modal, setModal] = useState(null); // null | "new" | product object
+
+  const {
+    data: products = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["admin-products"],
     queryFn: async () => {
       const res = await api.get("/admin/products");
@@ -248,256 +640,96 @@ export default function AdminProductsPage() {
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async (data) => {
-      if (data.id) {
-        return api.put(`/admin/products/${data.id}`, data);
-      }
-      return api.post("/admin/products", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
-      toast.success("Produto salvo!", {
-        style: { background: "#222", color: "#F5A623" },
-      });
-      setModal(null);
-    },
-    onError: (err) => {
-      toast.error(
-        err.response?.data?.error?.message ?? "Erro ao salvar produto",
-      );
-    },
-  });
-
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, isActive }) =>
-      api.patch(`/admin/products/${id}`, { isActive: !isActive }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
-    onError: () => toast.error("Erro ao atualizar produto"),
-  });
-
-  const filtered = products
-    .filter((p) => tab === "todos" || p.category === tab)
-    .filter(
-      (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
-    );
+  const existingCategories = [
+    ...new Set(
+      products.map((p) => p.category).filter((c) => c && c !== "Geral"),
+    ),
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-pitch)" }}>
-      {/* Top bar */}
-      <div
-        style={{
-          background: "var(--color-forge)",
-          borderBottom: "1px solid var(--color-smoke)",
-          padding: "0 1.5rem",
-          height: "60px",
-          display: "flex",
-          alignItems: "center",
-          gap: "1rem",
-        }}
-      >
-        <h1
-          className="font-display"
-          style={{
-            margin: 0,
-            fontSize: "1.75rem",
-            color: "var(--color-amber)",
-            flex: 1,
-          }}
-        >
-          📦 PRODUTOS
-        </h1>
-        <button
-          type="button"
-          onClick={() => setModal({ product: null })}
-          className="btn-amber"
-          style={{ padding: "0.5rem 1rem", fontSize: "0.8rem" }}
-        >
-          + Novo Produto
-        </button>
-      </div>
-
-      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "1.5rem" }}>
-        {/* Filters */}
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <input
-            className="input-dark"
-            placeholder="Buscar produto..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: "200px" }}
-          />
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-6 text-gray-900 sm:px-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl text-gold">
+            {t("ADMIN_PRODUCTS_TITLE", "Produtos")}
+          </h1>
+          <p className="mt-1 text-sm text-smoke">
+            {t(
+              "ADMIN_PRODUCTS_SUBTITLE",
+              "Gerencie o cardápio da Hamburgueria",
+            )}
+          </p>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "0.375rem",
-            marginBottom: "1.25rem",
-            flexWrap: "wrap",
-          }}
-        >
-          {["todos", ...CATEGORIES].map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setTab(c)}
-              className={tab === c ? "btn-amber" : "btn-ghost"}
-              style={{ padding: "0.375rem 0.875rem", fontSize: "0.78rem" }}
-            >
-              {c}
-            </button>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/admin"
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm transition hover:border-gold/30"
+          >
+            {t("NAV_PAINEL", "Painel")}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setModal("new")}
+            className="rounded-2xl bg-amber-400 px-4 py-2 text-sm font-bold text-[#11161d] transition hover:bg-amber-300"
+          >
+            + {t("ADMIN_PRODUCTS_NEW_BUTTON", "Novo Produto")}
+          </button>
+        </div>
+      </header>
+
+      {isLoading && (
+        <div className="mt-6 grid animate-pulse gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-64 rounded-2xl bg-gray-50" />
           ))}
         </div>
+      )}
 
-        {isLoading ? (
-          <p style={{ color: "var(--color-ash)" }}>Carregando...</p>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.625rem",
-            }}
-          >
-            {filtered.map((p) => (
-              <div
-                key={p.id}
-                className="card"
-                style={{
-                  padding: "0.875rem 1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  opacity: p.isActive ? 1 : 0.55,
-                }}
-              >
-                {p.imageUrl && (
-                  <img
-                    src={p.imageUrl}
-                    alt={p.name}
-                    style={{
-                      width: "56px",
-                      height: "56px",
-                      borderRadius: "0.5rem",
-                      objectFit: "cover",
-                      flexShrink: 0,
-                    }}
-                    onError={(e) => (e.target.style.display = "none")}
-                  />
-                )}
-                <div style={{ flex: 1 }}>
-                  <p
-                    style={{
-                      margin: "0 0 2px",
-                      fontWeight: 700,
-                      color: "var(--color-chalk)",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    {p.name}
-                    {!p.isActive && (
-                      <span
-                        style={{
-                          marginLeft: "8px",
-                          fontSize: "0.65rem",
-                          color: "var(--color-danger)",
-                          border: "1px solid var(--color-danger)",
-                          borderRadius: "3px",
-                          padding: "1px 5px",
-                        }}
-                      >
-                        Inativo
-                      </span>
-                    )}
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.72rem",
-                      color: "var(--color-ash)",
-                    }}
-                  >
-                    {p.category}
-                  </p>
-                </div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontWeight: 800,
-                    color: "var(--color-amber)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {fmt(p.price)}
-                </p>
-                <div style={{ display: "flex", gap: "0.375rem" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setModal({
-                        product: {
-                          ...p,
-                          ingredients: p.ingredients?.join(", ") ?? "",
-                        },
-                      })
-                    }
-                    className="btn-ghost"
-                    style={{ padding: "0.375rem 0.75rem", fontSize: "0.75rem" }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toggleActiveMutation.mutate({
-                        id: p.id,
-                        isActive: p.isActive,
-                      })
-                    }
-                    className="btn-ghost"
-                    style={{
-                      padding: "0.375rem 0.75rem",
-                      fontSize: "0.75rem",
-                      color: p.isActive
-                        ? "var(--color-danger)"
-                        : "var(--color-ok)",
-                    }}
-                  >
-                    {p.isActive ? "Desativar" : "Ativar"}
-                  </button>
-                </div>
-              </div>
+      {isError && (
+        <p className="mt-6 text-sm text-red-300">
+          {t("ADMIN_PRODUCTS_LOAD_ERROR", "Falha ao carregar produtos.")}
+        </p>
+      )}
+
+      {!isLoading && !isError && (
+        <>
+          <p className="mt-4 text-xs text-smoke">
+            {t("ADMIN_PRODUCTS_ACTIVE_COUNT", "{{count}} ativos").replace(
+              "{{count}}",
+              String(products.filter((p) => p.isActive).length),
+            )}
+            {" · "}
+            {t("ADMIN_PRODUCTS_INACTIVE_COUNT", "{{count}} inativos").replace(
+              "{{count}}",
+              String(products.filter((p) => !p.isActive).length),
+            )}
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onEdit={(p) => setModal(p)}
+              />
             ))}
-            {filtered.length === 0 && (
-              <p
-                style={{
-                  color: "var(--color-ash)",
-                  textAlign: "center",
-                  padding: "2rem",
-                }}
-              >
-                Nenhum produto encontrado.
-              </p>
+            {products.length === 0 && (
+              <div className="col-span-full rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-smoke">
+                {t("ADMIN_PRODUCTS_EMPTY", "Nenhum produto cadastrado ainda.")}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {modal && (
-        <ProductFormModal
-          initial={modal.product}
+        <ProductModal
+          product={modal === "new" ? null : modal}
           onClose={() => setModal(null)}
-          onSave={(data) => saveMutation.mutate(data)}
+          existingCategories={existingCategories}
         />
       )}
-    </div>
+    </main>
   );
 }
+
+export default AdminProductsPage;

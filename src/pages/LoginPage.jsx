@@ -1,29 +1,35 @@
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { api } from "../lib/api.js";
+import { useTranslation } from "../context/I18nContext.jsx";
 
-export default function LoginPage() {
+const INPUT_CLS =
+  "w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm outline-none transition focus:border-rosso focus:ring-2 focus:ring-rosso/10";
+
+function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect") || null;
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const [tab, setTab] = useState("login");
   const [loginForm, setLoginForm] = useState({ identifier: "", password: "" });
   const [registerForm, setRegisterForm] = useState({
     name: "",
+    cpf: "",
     email: "",
     phone: "",
-    cpf: "",
-    address: "",
     password: "",
+    address: "",
   });
 
   const handlePostAuth = (data) => {
     login(data);
+    toast.success(tab === "login" ? "Login realizado!" : "Conta criada!");
     const role = data.user?.role;
     if (redirectTo) {
       navigate(redirectTo);
@@ -37,420 +43,259 @@ export default function LoginPage() {
       navigate("/admin");
       return;
     }
-    if (role === "MOTOBOY") {
-      navigate("/motoboy");
-      return;
-    }
     navigate("/dashboard");
   };
 
   const loginMutation = useMutation({
     mutationFn: async (payload) => {
-      const res = await api.post("/auth/login", payload);
-      return res.data?.data;
+      const response = await api.post("/auth/login", payload);
+      return response.data?.data;
     },
     onSuccess: handlePostAuth,
-    onError: () =>
-      toast.error("Credenciais inválidas", {
-        style: { background: "#222", color: "#fff" },
-      }),
+    onError: () => toast.error("Credenciais inválidas"),
   });
 
   const registerMutation = useMutation({
     mutationFn: async (payload) => {
-      const res = await api.post("/auth/register", payload);
-      return res.data?.data;
+      const response = await api.post("/auth/register", payload);
+      return response.data?.data;
     },
-    onSuccess: (data) => {
-      toast.success("Conta criada! Bem-vindo 🍔", {
-        style: { background: "#222", color: "#F5A623" },
-      });
-      handlePostAuth(data);
-    },
+    onSuccess: handlePostAuth,
     onError: (err) => {
-      const msg = err.response?.data?.error?.message || "Erro ao criar conta";
-      toast.error(msg, { style: { background: "#222", color: "#fff" } });
+      const msg = err.response?.data?.message || "Erro ao criar conta";
+      toast.error(msg);
     },
   });
 
   const onLoginSubmit = (e) => {
     e.preventDefault();
-    if (!loginForm.identifier || !loginForm.password) return;
     loginMutation.mutate(loginForm);
   };
 
   const onRegisterSubmit = (e) => {
     e.preventDefault();
-    if (!registerForm.email && !registerForm.phone) {
+    const { name, cpf, email, phone, password, address } = registerForm;
+    if (!email && !phone) {
       toast.error("Informe email ou telefone");
       return;
     }
     registerMutation.mutate({
-      name: registerForm.name,
-      email: registerForm.email || undefined,
-      phone: registerForm.phone || undefined,
-      cpf: registerForm.cpf || undefined,
-      address: registerForm.address || undefined,
-      password: registerForm.password,
+      name,
+      cpf: cpf || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
+      password,
+      address: address || undefined,
     });
   };
 
-  const isLoading = loginMutation.isPending || registerMutation.isPending;
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--color-pitch)",
-        display: "flex",
-      }}
-    >
+    <main className="flex min-h-screen bg-white text-gray-900">
       {/* Left — hero */}
-      <div
-        style={{
-          display: "none",
-          position: "relative",
-          overflow: "hidden",
-          flex: "0 0 45%",
-        }}
-        className="lg-hero"
-      >
+      <div className="relative hidden overflow-hidden lg:flex lg:w-1/2">
         <img
-          src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=900&q=80"
-          alt="Burger"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          src="https://images.unsplash.com/photo-1513104890138-7c749659a591?w=900&q=80"
+          alt="Pizza artesanal Fellice"
+          className="h-full w-full object-cover"
         />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(135deg, rgba(245,166,35,0.6) 0%, rgba(0,0,0,0.7) 100%)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            padding: "3rem",
-            color: "#fff",
-          }}
-        >
-          <p
-            className="font-display"
-            style={{
-              fontSize: "3.5rem",
-              margin: "0 0 1rem",
-              lineHeight: 0.95,
-              color: "#fff",
-            }}
-          >
-            O BURGER
-            <br />
-            PERFEITO
-            <br />
-            <span style={{ color: "var(--color-amber)" }}>TE ESPERA.</span>
+        <div className="absolute inset-0 bg-gradient-to-br from-rosso/80 to-black/60" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-12 text-white">
+          <img
+            src="/logo-fellice.png"
+            alt="Pizzaria Fellice"
+            className="h-16 w-auto brightness-0 invert"
+          />
+          <p className="font-script text-2xl italic text-white/90">
+            {t("LOGIN_TAGLINE", "O seu momento de ser feliz!")}
           </p>
         </div>
       </div>
 
       {/* Right — form */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem 1.5rem",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: "420px" }}>
-          {/* Logo */}
-          <Link to="/" style={{ textDecoration: "none" }}>
-            <p
-              className="font-display"
-              style={{
-                fontSize: "2rem",
-                color: "var(--color-amber)",
-                marginBottom: "2rem",
-              }}
-            >
-              🍔 BURGER CO.
-            </p>
-          </Link>
-
-          {/* Tabs */}
-          <div
-            style={{
-              display: "flex",
-              background: "var(--color-iron)",
-              borderRadius: "0.875rem",
-              padding: "4px",
-              marginBottom: "2rem",
-            }}
-          >
-            {["login", "register"].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                style={{
-                  flex: 1,
-                  padding: "0.625rem",
-                  borderRadius: "0.625rem",
-                  border: "none",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  fontFamily: "var(--font-body)",
-                  background: tab === t ? "var(--color-amber)" : "transparent",
-                  color: tab === t ? "#000" : "var(--color-ash)",
-                  transition: "all 0.2s",
-                }}
-              >
-                {t === "login" ? "Entrar" : "Criar Conta"}
-              </button>
-            ))}
+      <div className="flex w-full items-center justify-center px-6 py-12 lg:w-1/2">
+        <div className="w-full max-w-sm">
+          {/* Logo mobile */}
+          <div className="mb-6 flex justify-center lg:hidden">
+            <img
+              src="/logo-fellice.png"
+              alt="Pizzaria Fellice"
+              className="h-12 w-auto"
+            />
           </div>
 
-          {/* Login form */}
-          {tab === "login" && (
-            <form
-              onSubmit={onLoginSubmit}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.875rem",
-              }}
+          {/* Tabs */}
+          <div className="mb-6 flex rounded-2xl border border-gray-200 bg-gray-50 p-1">
+            <button
+              type="button"
+              onClick={() => setTab("login")}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition ${
+                tab === "login"
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
             >
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--color-ash)",
-                    display: "block",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  Email ou Telefone
-                </label>
+              {t("LOGIN_ENTER", "Entrar")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("register")}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition ${
+                tab === "register"
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t("LOGIN_CREATE_ACCOUNT", "Criar conta")}
+            </button>
+          </div>
+
+          {tab === "login" ? (
+            <>
+              <h1 className="font-display text-2xl font-bold text-gray-900">
+                {t("LOGIN_TITLE", "Bem-vindo")}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                {t(
+                  "LOGIN_SUBTITLE",
+                  "Entre com email ou telefone para continuar.",
+                )}
+              </p>
+              <form onSubmit={onLoginSubmit} className="mt-6 space-y-4">
                 <input
-                  className="input-dark"
                   type="text"
-                  placeholder="seu@email.com ou (11) 99999-9999"
+                  required
+                  placeholder={t("LOGIN_PH_IDENTIFIER", "Email ou telefone")}
                   value={loginForm.identifier}
                   onChange={(e) =>
-                    setLoginForm((f) => ({ ...f, identifier: e.target.value }))
+                    setLoginForm((p) => ({ ...p, identifier: e.target.value }))
                   }
-                  required
+                  className={INPUT_CLS}
                 />
-              </div>
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--color-ash)",
-                    display: "block",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  Senha
-                </label>
                 <input
-                  className="input-dark"
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  required
+                  placeholder={t("LOGIN_PH_PASSWORD", "Senha")}
                   value={loginForm.password}
                   onChange={(e) =>
-                    setLoginForm((f) => ({ ...f, password: e.target.value }))
+                    setLoginForm((p) => ({ ...p, password: e.target.value }))
                   }
-                  required
+                  className={INPUT_CLS}
                 />
-              </div>
-              <button
-                type="submit"
-                className="btn-amber"
-                disabled={isLoading}
-                style={{
-                  padding: "1rem",
-                  fontSize: "1rem",
-                  marginTop: "0.5rem",
-                }}
-              >
-                {isLoading ? "Entrando..." : "Entrar →"}
-              </button>
-            </form>
-          )}
-
-          {/* Register form */}
-          {tab === "register" && (
-            <form
-              onSubmit={onRegisterSubmit}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.875rem",
-              }}
-            >
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--color-ash)",
-                    display: "block",
-                    marginBottom: "0.375rem",
-                  }}
+                <button
+                  type="submit"
+                  disabled={loginMutation.isPending}
+                  className="w-full rounded-2xl bg-rosso py-4 text-base font-bold text-white shadow-md transition hover:bg-ember disabled:opacity-50"
                 >
-                  Nome *
-                </label>
+                  {loginMutation.isPending
+                    ? t("LOGIN_BTN_LOADING", "Entrando...")
+                    : t("LOGIN_BTN", "Entrar")}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="font-display text-2xl font-bold text-gray-900">
+                {t("REG_TITLE", "Criar conta")}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("REG_SUBTITLE", "Preencha os dados para se cadastrar.")}
+              </p>
+              <form onSubmit={onRegisterSubmit} className="mt-6 space-y-4">
                 <input
-                  className="input-dark"
                   type="text"
-                  placeholder="Seu nome completo"
+                  required
+                  placeholder={t("REG_PH_NAME", "Nome completo")}
                   value={registerForm.name}
                   onChange={(e) =>
-                    setRegisterForm((f) => ({ ...f, name: e.target.value }))
+                    setRegisterForm((p) => ({ ...p, name: e.target.value }))
                   }
-                  required
+                  className={INPUT_CLS}
                 />
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "0.625rem",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "var(--color-ash)",
-                      display: "block",
-                      marginBottom: "0.375rem",
-                    }}
-                  >
-                    Email
-                  </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="CPF (000.000.000-00)"
+                  value={registerForm.cpf}
+                  onChange={(e) =>
+                    setRegisterForm((p) => ({ ...p, cpf: e.target.value }))
+                  }
+                  className={INPUT_CLS}
+                />
+                <div className="space-y-2">
                   <input
-                    className="input-dark"
                     type="email"
-                    placeholder="seu@email.com"
+                    placeholder={t(
+                      "REG_PH_EMAIL",
+                      "Email (opcional se informar telefone)",
+                    )}
                     value={registerForm.email}
                     onChange={(e) =>
-                      setRegisterForm((f) => ({ ...f, email: e.target.value }))
+                      setRegisterForm((p) => ({ ...p, email: e.target.value }))
                     }
+                    className={INPUT_CLS}
                   />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "var(--color-ash)",
-                      display: "block",
-                      marginBottom: "0.375rem",
-                    }}
-                  >
-                    Telefone
-                  </label>
                   <input
-                    className="input-dark"
                     type="tel"
-                    placeholder="(11) 99999-9999"
+                    placeholder={t(
+                      "REG_PH_PHONE",
+                      "Telefone (opcional se informar email)",
+                    )}
                     value={registerForm.phone}
                     onChange={(e) =>
-                      setRegisterForm((f) => ({ ...f, phone: e.target.value }))
+                      setRegisterForm((p) => ({ ...p, phone: e.target.value }))
                     }
+                    className={INPUT_CLS}
                   />
+                  <p className="text-xs text-smoke">
+                    {t("REG_NOTE", "* Informe ao menos email ou telefone")}
+                  </p>
                 </div>
-              </div>
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--color-ash)",
-                    display: "block",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  Endereço (opcional)
-                </label>
                 <input
-                  className="input-dark"
-                  type="text"
-                  placeholder="Rua, número, bairro"
-                  value={registerForm.address}
-                  onChange={(e) =>
-                    setRegisterForm((f) => ({ ...f, address: e.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--color-ash)",
-                    display: "block",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  Senha *
-                </label>
-                <input
-                  className="input-dark"
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  required
+                  placeholder={t(
+                    "REG_PH_PASSWORD",
+                    "Senha (mínimo 6 caracteres)",
+                  )}
                   value={registerForm.password}
                   onChange={(e) =>
-                    setRegisterForm((f) => ({ ...f, password: e.target.value }))
+                    setRegisterForm((p) => ({ ...p, password: e.target.value }))
                   }
-                  required
+                  className={INPUT_CLS}
                 />
-              </div>
-              <p
-                style={{
-                  fontSize: "0.72rem",
-                  color: "var(--color-ash)",
-                  margin: 0,
-                }}
-              >
-                * Informe email ou telefone (pelo menos um)
-              </p>
-              <button
-                type="submit"
-                className="btn-amber"
-                disabled={isLoading}
-                style={{
-                  padding: "1rem",
-                  fontSize: "1rem",
-                  marginTop: "0.25rem",
-                }}
-              >
-                {isLoading ? "Criando conta..." : "Criar Conta →"}
-              </button>
-            </form>
+                <input
+                  type="text"
+                  required
+                  placeholder={t("REG_PH_ADDRESS", "Endereço de entrega")}
+                  value={registerForm.address}
+                  onChange={(e) =>
+                    setRegisterForm((p) => ({ ...p, address: e.target.value }))
+                  }
+                  className={INPUT_CLS}
+                />
+                <button
+                  type="submit"
+                  disabled={registerMutation.isPending}
+                  className="w-full rounded-2xl bg-rosso py-4 text-base font-bold text-white shadow-md transition hover:bg-ember disabled:opacity-50"
+                >
+                  {registerMutation.isPending
+                    ? t("REG_BTN_LOADING", "Criando conta...")
+                    : t("REG_BTN", "Criar conta")}
+                </button>
+              </form>
+            </>
           )}
 
-          <p
-            style={{
-              textAlign: "center",
-              marginTop: "1.5rem",
-              fontSize: "0.8rem",
-              color: "var(--color-ash)",
-            }}
+          <Link
+            to="/"
+            className="mt-6 block text-center text-sm text-gray-400 transition hover:text-rosso"
           >
-            <Link
-              to="/cardapio"
-              style={{ color: "var(--color-amber)", textDecoration: "none" }}
-            >
-              ← Voltar ao cardápio
-            </Link>
-          </p>
+            {t("LOGIN_BACK", "← Voltar para o cardápio")}
+          </Link>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
+
+export default LoginPage;
