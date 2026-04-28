@@ -312,11 +312,6 @@ function CardapioPage() {
           "Hamburgueria © 2024 · Artesanal do início ao fim!",
         )}
       </footer>
-        {t(
-          "FOOTER_COPYRIGHT",
-          "Pizzaria Fellice © 2024 · O seu momento de ser feliz!",
-        )}
-      </footer>
 
       {/* Banner fixo de pagamento pendente (só MESA) */}
       {pendingTotal > 0 && (
