@@ -93,7 +93,7 @@ export default function Navbar({ activeLink }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur-sm">
+      <header className="sticky top-0 z-30 border-b border-[#2a2a38] bg-[#101018]/95 shadow-sm backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-8">
           {/* Logo — segure 3s para sair (só MESA) */}
           <Link
@@ -104,12 +104,17 @@ export default function Navbar({ activeLink }) {
             onTouchStart={handleLogoMouseDown}
             onTouchEnd={handleLogoMouseUp}
             draggable={false}
+            className="flex items-center gap-2"
           >
-            <img
-              src="/logo-fellice.png"
-              alt="Pizzaria Fellice"
-              className="h-10 w-auto select-none"
-            />
+            <span className="text-xl">🍔</span>
+            <div className="leading-tight">
+              <p className="font-display text-base font-bold text-amber-400">
+                Hamburgueria
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
+                Artesanal
+              </p>
+            </div>
           </Link>
 
           {/* Links */}
@@ -128,10 +133,10 @@ export default function Navbar({ activeLink }) {
 
             <Link
               to="/cardapio"
-              className={`text-sm font-semibold transition-colors hover:text-rosso ${
+              className={`text-sm font-semibold transition-colors hover:text-amber-400 ${
                 activeLink === "cardapio"
-                  ? "text-rosso underline underline-offset-4"
-                  : "text-gray-700"
+                  ? "text-amber-400 underline underline-offset-4"
+                  : "text-gray-300"
               }`}
             >
               {t("NAV_CARDAPIO", "Cardápio")}
@@ -140,7 +145,7 @@ export default function Navbar({ activeLink }) {
             {isAuthenticated && user?.role !== "MESA" ? (
               <>
                 <Link
-                  className="text-sm text-gray-500 transition-colors hover:text-rosso"
+                  className="text-sm text-gray-400 transition-colors hover:text-amber-400"
                   to={painelTo}
                 >
                   {t("NAV_PAINEL", "Painel")}
@@ -148,14 +153,14 @@ export default function Navbar({ activeLink }) {
                 <button
                   type="button"
                   onClick={logout}
-                  className="text-sm text-gray-400 transition-colors hover:text-rosso"
+                  className="text-sm text-gray-500 transition-colors hover:text-amber-400"
                 >
                   {t("NAV_SAIR", "Sair")}
                 </button>
               </>
             ) : !isAuthenticated ? (
               <Link
-                className="text-sm text-gray-600 transition-colors hover:text-rosso"
+                className="text-sm text-gray-300 transition-colors hover:text-amber-400"
                 to="/login"
               >
                 {t("NAV_ENTRAR", "Entrar")}
@@ -178,14 +183,14 @@ export default function Navbar({ activeLink }) {
             <button
               type="button"
               onClick={openCart}
-              className="relative flex items-center gap-2 rounded-xl bg-rosso px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-ember"
+              className="relative flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-[#10151d] shadow-sm transition hover:bg-amber-300"
             >
               <span>🛒</span>
               <span className="hidden sm:inline">
                 {t("NAV_CARRINHO", "Carrinho")}
               </span>
               {items.length > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gold text-[10px] font-black text-black">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#2a2a38] text-[10px] font-black text-amber-400">
                   {items.length}
                 </span>
               )}
