@@ -94,19 +94,19 @@ function LoginPage() {
       {/* Left — hero */}
       <div className="relative hidden overflow-hidden lg:flex lg:w-1/2">
         <img
-          src="https://images.unsplash.com/photo-1513104890138-7c749659a591?w=900&q=80"
-          alt="Pizza artesanal Fellice"
+          src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=900&q=80"
+          alt="Hamburguer artesanal"
           className="h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-rosso/80 to-black/60" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-12 text-white">
-          <img
-            src="/logo-fellice.png"
-            alt="Pizzaria Fellice"
-            className="h-16 w-auto brightness-0 invert"
-          />
+          <div className="text-center">
+            <p className="font-display text-3xl font-bold tracking-wide">
+              HAMBURGUERIA
+            </p>
+          </div>
           <p className="font-script text-2xl italic text-white/90">
-            {t("LOGIN_TAGLINE", "O seu momento de ser feliz!")}
+            {t("LOGIN_TAGLINE_H", "Artesanal do inicio ao fim!")}
           </p>
         </div>
       </div>
@@ -116,11 +116,9 @@ function LoginPage() {
         <div className="w-full max-w-sm">
           {/* Logo mobile */}
           <div className="mb-6 flex justify-center lg:hidden">
-            <img
-              src="/logo-fellice.png"
-              alt="Pizzaria Fellice"
-              className="h-12 w-auto"
-            />
+            <p className="font-display text-xl font-bold tracking-wide text-rosso">
+              HAMBURGUERIA
+            </p>
           </div>
 
           {/* Tabs */}
