@@ -21,18 +21,18 @@ function HomePage() {
         <div className="absolute inset-0 flex items-center px-6 sm:px-16">
           <div className="max-w-lg">
             <p className="mb-3 font-display text-[0.65rem] uppercase tracking-[0.35em] text-amber-400">
-              {t("HOME_TAGLINE", "Feito na hora · Ingredientes premium")}
+              {t("HOME_TAGLINE_H", "Feito na hora · Ingredientes premium")}
             </p>
             <h1 className="font-display text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-              {t("HOME_HERO_TITLE_1", "Hambúrgueres")}
+              {t("HOME_HERO_TITLE_1_H", "Hambúrgueres")}
               <br />
               <span className="text-amber-400">
-                {t("HOME_HERO_TITLE_2", "Artesanais")}
+                {t("HOME_HERO_TITLE_2_H", "Artesanais")}
               </span>
             </h1>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/75 sm:text-base">
               {t(
-                "HOME_HERO_DESC",
+                "HOME_HERO_DESC_H",
                 "Carne fresca, pão brioche quentinho e combinações que vão te surpreender. Do smash ao duplo, cada mordida é única.",
               )}
             </p>
@@ -40,7 +40,7 @@ function HomePage() {
               to="/cardapio"
               className="mt-7 inline-block rounded-2xl bg-amber-400 px-8 py-4 text-base font-extrabold text-[#10151d] shadow-xl transition-all hover:scale-[1.03] hover:bg-amber-300"
             >
-              {t("HOME_BTN_ORDER", "Fazer Pedido Agora")}
+              {t("HOME_BTN_ORDER_H", "Fazer Pedido Agora")}
             </Link>
           </div>
         </div>
@@ -52,25 +52,25 @@ function HomePage() {
           {[
             {
               icon: "🍔",
-              titleKey: "HOME_FEAT_1_TITLE",
+              titleKey: "HOME_FEAT_1_TITLE_H",
               titleDefault: "Smash Burger",
-              descKey: "HOME_FEAT_1_DESC",
+              descKey: "HOME_FEAT_1_DESC_H",
               descDefault:
                 "Blend de carne prensado na chapa, caramelizado por fora e suculento por dentro.",
             },
             {
               icon: "🔥",
-              titleKey: "HOME_FEAT_2_TITLE",
+              titleKey: "HOME_FEAT_2_TITLE_H",
               titleDefault: "Feito na Hora",
-              descKey: "HOME_FEAT_2_DESC",
+              descKey: "HOME_FEAT_2_DESC_H",
               descDefault:
                 "Cada pedido é preparado na hora. Sem pré-cozidos, sem congelados.",
             },
             {
               icon: "🛵",
-              titleKey: "HOME_FEAT_3_TITLE",
+              titleKey: "HOME_FEAT_3_TITLE_H",
               titleDefault: "Delivery Rápido",
-              descKey: "HOME_FEAT_3_DESC",
+              descKey: "HOME_FEAT_3_DESC_H",
               descDefault:
                 "Entregamos quentinho até você. Acompanhe seu pedido em tempo real.",
             },
@@ -95,10 +95,10 @@ function HomePage() {
       <section className="mx-auto max-w-4xl px-6 pb-16 sm:px-8">
         <div className="mb-8 text-center">
           <p className="font-display text-[0.65rem] uppercase tracking-[0.35em] text-amber-400">
-            {t("HOME_ABOUT_LABEL", "Quem somos")}
+            {t("HOME_ABOUT_LABEL_H", "Quem somos")}
           </p>
           <h2 className="mt-2 font-display text-3xl font-bold text-gray-100 sm:text-4xl">
-            {t("HOME_ABOUT_TITLE", "Paixão por hambúrgueres artesanais")}
+            {t("HOME_ABOUT_TITLE_H", "Paixão por hambúrgueres artesanais")}
           </h2>
           <div className="mx-auto mt-3 h-0.5 w-16 rounded-full bg-amber-400" />
         </div>
@@ -106,13 +106,13 @@ function HomePage() {
         <div className="space-y-5 text-base leading-8 text-gray-400">
           <p>
             {t(
-              "HOME_ABOUT_P1",
+              "HOME_ABOUT_P1_H",
               "Nascemos da paixão por hambúrgueres de verdade. Usamos apenas carnes frescas, pães artesanais quentinhos e ingredientes selecionados para criar experiências únicas a cada mordida.",
             )}
           </p>
           <p>
             {t(
-              "HOME_ABOUT_P2",
+              "HOME_ABOUT_P2_H",
               "Além dos nossos smash burgers, temos opções para todos os gostos: duplos, vegetarianos, combos com batata frita e muito mais. Cada item do cardápio é preparado com o mesmo cuidado e dedicação.",
             )}
           </p>
@@ -123,13 +123,16 @@ function HomePage() {
             to="/cardapio"
             className="rounded-2xl bg-amber-400 px-10 py-4 text-base font-bold text-[#10151d] shadow-md transition-all hover:scale-[1.02] hover:bg-amber-300"
           >
-            {t("HOME_BTN_MENU", "Ver Cardápio Completo")}
+            {t("HOME_BTN_MENU_H", "Ver Cardápio Completo")}
           </Link>
         </div>
       </section>
 
       <footer className="border-t border-[#1e1e2a] py-6 text-center text-xs text-gray-500">
-        {t("FOOTER_COPYRIGHT", "Hamburgueria © 2024 · Artesanal do início ao fim!")}
+        {t(
+          "FOOTER_COPYRIGHT_H",
+          "Hamburgueria © 2024 · Artesanal do início ao fim!",
+        )}
       </footer>
 
       <CartDrawer />
