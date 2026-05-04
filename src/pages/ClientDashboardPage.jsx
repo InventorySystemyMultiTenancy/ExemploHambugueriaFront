@@ -38,7 +38,7 @@ const STATUS_FILTERS = [
   { id: "TODOS", label: "Todos" },
   { id: "RECEBIDO", label: "Recebido" },
   { id: "PREPARANDO", label: "Preparando" },
-  { id: "NO_FORNO", label: "No Forno" },
+  { id: "PRONTO", label: "Pronto" },
   { id: "SAIU_PARA_ENTREGA", label: "Saiu p/ Entrega" },
   { id: "ENTREGUE", label: "Entregue" },
   { id: "CANCELADO", label: "Cancelado" },

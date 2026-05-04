@@ -39,12 +39,12 @@ const COLUMNS = [
   {
     key: "PREPARANDO",
     label: "Preparando",
-    next: "NO_FORNO",
+    next: "PRONTO",
     color: "border-yellow-500/40 bg-yellow-500/10",
   },
   {
-    key: "NO_FORNO",
-    label: "No Forno",
+    key: "PRONTO",
+    label: "Pronto",
     next: "SAIU_PARA_ENTREGA",
     color: "border-ember/40 bg-ember/10",
   },
@@ -74,14 +74,14 @@ const STAGES = COLUMNS.filter((c) => !c.virtual);
 const STAGE_BADGE = {
   RECEBIDO: "bg-blue-100 text-blue-700",
   PREPARANDO: "bg-yellow-100 text-yellow-700",
-  NO_FORNO: "bg-orange-100 text-orange-700",
+  PRONTO: "bg-orange-100 text-orange-700",
   SAIU_PARA_ENTREGA: "bg-green-100 text-green-700",
 };
 
 const NEXT_LABEL = {
   RECEBIDO: "Iniciar Preparo",
-  PREPARANDO: "Enviar ao Forno",
-  NO_FORNO: "Saiu para Entrega",
+  PREPARANDO: "Marcar Pronto",
+  PRONTO: "Saiu para Entrega",
   SAIU_PARA_ENTREGA: "Marcar Entregue",
 };
 
@@ -130,11 +130,11 @@ function OrderCard({
 
   const advanceLabel = advancing
     ? t("KITCHEN_UPDATING", "Atualizando...")
-    : order.mesaId && order.status === "NO_FORNO"
+    : order.mesaId && order.status === "PRONTO"
       ? t("KITCHEN_ADVANCE_TO_TABLE", "Levar para a Mesa")
       : order.mesaId && order.status === "SAIU_PARA_ENTREGA"
         ? t("KITCHEN_DELIVERED_AT_TABLE", "Entregue na Mesa")
-        : order.isPickup && order.status === "NO_FORNO"
+        : order.isPickup && order.status === "PRONTO"
           ? t("KITCHEN_READY_PICKUP", "Pronto p/ Retirada")
           : order.isPickup && order.status === "SAIU_PARA_ENTREGA"
             ? t("KITCHEN_MARK_PICKED_UP", "Marcar Retirado")

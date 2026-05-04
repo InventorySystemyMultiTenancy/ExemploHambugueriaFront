@@ -1,7 +1,7 @@
 const statusSteps = [
   { key: "RECEBIDO", label: "Recebido" },
   { key: "PREPARANDO", label: "Preparando" },
-  { key: "NO_FORNO", label: "No Forno" },
+  { key: "PRONTO", label: "Pronto" },
   { key: "SAIU_PARA_ENTREGA", label: "Saiu para Entrega" },
   { key: "ENTREGUE", label: "Entregue" },
 ];
