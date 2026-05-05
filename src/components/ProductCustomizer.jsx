@@ -78,7 +78,7 @@ function ProductCustomizer({
 
   const handleAddToCart = () => {
     const productId = String(product?.id || "").trim();
-    if (!productId || basePrice <= 0) return;
+    if (!productId) return;
 
     const keyParts = [
       productId,
