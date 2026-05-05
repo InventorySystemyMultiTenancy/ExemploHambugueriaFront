@@ -7,7 +7,7 @@ import {
 } from "react";
 
 const I18N_API_URL = import.meta.env.VITE_I18N_URL || "http://localhost:3001";
-const SISTEMA = "website";
+const SISTEMA = "exemplohamburgueria";
 const DEFAULT_LOCALE = "pt-BR";
 const STORAGE_NS = `i18n_${SISTEMA}`;
 const ANON_LOCALE_KEY = `${STORAGE_NS}_locale`;

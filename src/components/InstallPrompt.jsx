@@ -110,7 +110,7 @@ function InstallPrompt() {
   return (
     <aside className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-3xl border border-gold/30 bg-white/95 p-4 shadow-2xl backdrop-blur">
       <p className="text-sm font-bold text-gray-900">
-        Instale o app da Pizzaria Fellice
+        Instale o app da Hamburgueria
       </p>
       {showIosInstructions ? (
         <p className="mt-1 text-xs leading-relaxed text-gray-600">

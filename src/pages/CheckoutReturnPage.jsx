@@ -115,7 +115,7 @@ function CheckoutReturnPage() {
 
       <img
         src="/logo-fellice.png"
-        alt={t("APP_BRAND_NAME", "Pizzaria Fellice")}
+        alt={t("APP_BRAND_NAME", "Hamburgueria")}
         className="mt-8 h-10 w-auto opacity-50"
       />
     </main>

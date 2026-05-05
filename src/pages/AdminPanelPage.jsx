@@ -98,11 +98,11 @@ function AdminPanelPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-display text-3xl text-gold">
-            {t("ADMIN_PANEL_TITLE", "Painel Admin")}
+            {t("ADMIN_PANEL_TITLE_EXEMPLOHAMBURGUERIA", "Painel Admin")}
           </h1>
           <p className="mt-1 text-sm text-smoke">
             {t(
-              "ADMIN_PANEL_SUBTITLE",
+              "ADMIN_PANEL_SUBTITLE_EXEMPLOHAMBURGUERIA",
               "Visão operacional para equipe da Hamburgueria.",
             )}
           </p>
@@ -111,7 +111,7 @@ function AdminPanelPage() {
           to="/"
           className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-800"
         >
-          {t("ADMIN_PANEL_BACK_HOME", "← Início")}
+          {t("ADMIN_PANEL_BACK_HOME_EXEMPLOHAMBURGUERIA", "← Início")}
         </Link>
       </div>
 
@@ -124,30 +124,36 @@ function AdminPanelPage() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-red-400" />
             </span>
             {t(
-              "ADMIN_PANEL_OVERDUE_COUNT",
+              "ADMIN_PANEL_OVERDUE_COUNT_EXEMPLOHAMBURGUERIA",
               "{{count}} pedidos em atraso",
             ).replace("{{count}}", String(overdueCount))}
           </span>
         )}
         {overdueCount === 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-green-400/30 bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
-            ✓ {t("ADMIN_PANEL_NO_DELAYS", "Sem atrasos")}
+            ✓ {t("ADMIN_PANEL_NO_DELAYS_EXEMPLOHAMBURGUERIA", "Sem atrasos")}
           </span>
         )}
         {unreadCount > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
             🔔{" "}
-            {t("ADMIN_PANEL_ALERTS_COUNT", "{{count}} alertas").replace(
-              "{{count}}",
-              String(unreadCount),
-            )}
+            {t(
+              "ADMIN_PANEL_ALERTS_COUNT_EXEMPLOHAMBURGUERIA",
+              "{{count}} alertas",
+            ).replace("{{count}}", String(unreadCount))}
           </span>
         )}
         <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs text-smoke">
           🖥{" "}
           {desktopEnabled
-            ? t("ADMIN_PANEL_DESKTOP_ON", "Notificações ativas")
-            : t("ADMIN_PANEL_DESKTOP_OFF", "Notificações inativas")}
+            ? t(
+                "ADMIN_PANEL_DESKTOP_ON_EXEMPLOHAMBURGUERIA",
+                "Notificações ativas",
+              )
+            : t(
+                "ADMIN_PANEL_DESKTOP_OFF_EXEMPLOHAMBURGUERIA",
+                "Notificações inativas",
+              )}
         </span>
       </div>
 
@@ -162,11 +168,14 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_PRODUCTS_TITLE", "Gerenciar Produtos")}
+              {t(
+                "ADMIN_PANEL_CARD_PRODUCTS_TITLE_EXEMPLOHAMBURGUERIA",
+                "Gerenciar Produtos",
+              )}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_PRODUCTS_DESC",
+                "ADMIN_PANEL_CARD_PRODUCTS_DESC_EXEMPLOHAMBURGUERIA",
                 "Cadastrar, editar e desativar itens do cardápio",
               )}
             </p>
@@ -182,11 +191,14 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_SALES_TITLE", "Análise de Vendas")}
+              {t(
+                "ADMIN_PANEL_CARD_SALES_TITLE_EXEMPLOHAMBURGUERIA",
+                "Análise de Vendas",
+              )}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_SALES_DESC",
+                "ADMIN_PANEL_CARD_SALES_DESC_EXEMPLOHAMBURGUERIA",
                 "Receita, ticket médio e itens mais vendidos",
               )}
             </p>
@@ -202,11 +214,14 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_KITCHEN_TITLE", "Painel da Cozinha")}
+              {t(
+                "ADMIN_PANEL_CARD_KITCHEN_TITLE_EXEMPLOHAMBURGUERIA",
+                "Painel da Cozinha",
+              )}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_KITCHEN_DESC",
+                "ADMIN_PANEL_CARD_KITCHEN_DESC_EXEMPLOHAMBURGUERIA",
                 "Ver pedidos ativos e avançar status",
               )}
             </p>
@@ -222,11 +237,14 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_HISTORY_TITLE", "Histórico de Pedidos")}
+              {t(
+                "ADMIN_PANEL_CARD_HISTORY_TITLE_EXEMPLOHAMBURGUERIA",
+                "Histórico de Pedidos",
+              )}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_HISTORY_DESC",
+                "ADMIN_PANEL_CARD_HISTORY_DESC_EXEMPLOHAMBURGUERIA",
                 "Todos os pedidos, cancelamentos e estornos",
               )}
             </p>
@@ -242,11 +260,14 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_USERS_TITLE", "Criar Usuário")}
+              {t(
+                "ADMIN_PANEL_CARD_USERS_TITLE_EXEMPLOHAMBURGUERIA",
+                "Criar Usuário",
+              )}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_USERS_DESC",
+                "ADMIN_PANEL_CARD_USERS_DESC_EXEMPLOHAMBURGUERIA",
                 "Cadastrar motoboy, cozinha, funcionário ou admin",
               )}
             </p>
@@ -262,11 +283,11 @@ function AdminPanelPage() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 group-hover:text-gold">
-              {t("ADMIN_PANEL_CARD_TABLES_TITLE", "Mesas")}
+              {t("ADMIN_PANEL_CARD_TABLES_TITLE_EXEMPLOHAMBURGUERIA", "Mesas")}
             </h2>
             <p className="mt-0.5 text-xs text-smoke">
               {t(
-                "ADMIN_PANEL_CARD_TABLES_DESC",
+                "ADMIN_PANEL_CARD_TABLES_DESC_EXEMPLOHAMBURGUERIA",
                 "Cadastrar mesas, maquininhas e gerar QR codes",
               )}
             </p>
@@ -276,12 +297,15 @@ function AdminPanelPage() {
 
       {isLoading ? (
         <p className="mt-6 text-sm text-smoke">
-          {t("ADMIN_PANEL_LOADING", "Carregando dados...")}
+          {t("ADMIN_PANEL_LOADING_EXEMPLOHAMBURGUERIA", "Carregando dados...")}
         </p>
       ) : null}
       {isError ? (
         <p className="mt-6 text-sm text-red-300">
-          {t("ADMIN_PANEL_LOAD_ERROR", "Falha ao carregar dados do painel.")}
+          {t(
+            "ADMIN_PANEL_LOAD_ERROR_EXEMPLOHAMBURGUERIA",
+            "Falha ao carregar dados do painel.",
+          )}
         </p>
       ) : null}
 
@@ -290,7 +314,11 @@ function AdminPanelPage() {
         <section className="rounded-3xl border border-gold/20 bg-lacquer/70 p-4 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-xl text-gold">
-              🔥 {t("ADMIN_PANEL_PRIORITY_QUEUE_TITLE", "Fila Prioritária")}
+              🔥{" "}
+              {t(
+                "ADMIN_PANEL_PRIORITY_QUEUE_TITLE_EXEMPLOHAMBURGUERIA",
+                "Fila Prioritária",
+              )}
             </h2>
             <div className="flex items-center gap-2">
               <button
@@ -304,15 +332,24 @@ function AdminPanelPage() {
               >
                 🖥{" "}
                 {desktopEnabled
-                  ? t("ADMIN_PANEL_DESKTOP_BUTTON_ON", "ligado")
-                  : t("ADMIN_PANEL_DESKTOP_BUTTON_OFF", "desligado")}
+                  ? t(
+                      "ADMIN_PANEL_DESKTOP_BUTTON_ON_EXEMPLOHAMBURGUERIA",
+                      "ligado",
+                    )
+                  : t(
+                      "ADMIN_PANEL_DESKTOP_BUTTON_OFF_EXEMPLOHAMBURGUERIA",
+                      "desligado",
+                    )}
               </button>
               <button
                 type="button"
                 onClick={() => clearStaffUnreadCount()}
                 className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-smoke transition hover:border-gold/30 hover:text-gold"
               >
-                {t("ADMIN_PANEL_MARK_ALERTS_READ", "Limpar alertas")}
+                {t(
+                  "ADMIN_PANEL_MARK_ALERTS_READ_EXEMPLOHAMBURGUERIA",
+                  "Limpar alertas",
+                )}
                 {unreadCount ? ` (${unreadCount})` : ""}
               </button>
             </div>
@@ -340,7 +377,10 @@ function AdminPanelPage() {
             ))}
             {!prioritizedOrders.length && !isLoading ? (
               <li className="text-sm text-smoke">
-                {t("ADMIN_PANEL_NO_ORDERS", "Sem pedidos ativos no momento.")}
+                {t(
+                  "ADMIN_PANEL_NO_ORDERS_EXEMPLOHAMBURGUERIA",
+                  "Sem pedidos ativos no momento.",
+                )}
               </li>
             ) : null}
           </ul>
@@ -351,7 +391,10 @@ function AdminPanelPage() {
           <div className="flex items-center gap-2">
             <h2 className="font-display text-xl text-amber-500">
               💳{" "}
-              {t("ADMIN_PANEL_PENDING_PAYMENTS_TITLE", "Pagamentos Pendentes")}
+              {t(
+                "ADMIN_PANEL_PENDING_PAYMENTS_TITLE_EXEMPLOHAMBURGUERIA",
+                "Pagamentos Pendentes",
+              )}
             </h2>
             {pendingMesaOrders.length > 0 && (
               <span className="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
@@ -367,7 +410,8 @@ function AdminPanelPage() {
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-amber-800">
-                    🪑 {order.mesa?.name ?? t("ADMIN_PANEL_MESA_LABEL", "Mesa")}
+                    {order.mesa?.name ??
+                      t("ADMIN_PANEL_MESA_LABEL_EXEMPLOHAMBURGUERIA", "Mesa")}
                   </p>
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
                     {currency(order.total)}
@@ -385,7 +429,7 @@ function AdminPanelPage() {
             {!pendingMesaOrders.length && !isLoading ? (
               <li className="text-sm text-smoke">
                 {t(
-                  "ADMIN_PANEL_NO_PENDING_PAYMENTS",
+                  "ADMIN_PANEL_NO_PENDING_PAYMENTS_EXEMPLOHAMBURGUERIA",
                   "Nenhuma mesa com pagamento pendente.",
                 )}
               </li>
