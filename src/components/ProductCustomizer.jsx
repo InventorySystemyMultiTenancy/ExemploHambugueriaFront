@@ -27,7 +27,6 @@ const currency = (value) =>
     currency: "BRL",
   });
 
-// Detecta se o produto é um hambúrguer/lanche (exibe ponto de carne e remoção)
 function isBurgerProduct(product) {
   const cat = (product?.category ?? "").toLowerCase();
   return /hamburguer|hamburger|burger|lanche|sanduíche|sanduiche/.test(cat);
@@ -41,8 +40,8 @@ function ProductCustomizer({
 }) {
   const { addItem, openCart } = useCart();
 
+  const isBurger = isBurgerProduct(product);
   const [doneness, setDoneness] = useState("AO_PONTO");
-    const isBurger = isBurgerProduct(product);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [selectedRemovals, setSelectedRemovals] = useState([]);
   const [observation, setObservation] = useState("");
@@ -131,46 +130,46 @@ function ProductCustomizer({
       </header>
 
       <div className="space-y-5">
+        {isBurger && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
+              Ponto da carne
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {DONENESS_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setDoneness(option.id)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                    doneness === option.id
+                      ? "border-amber-400 bg-amber-400/10 text-amber-300"
+                      : "border-[#2b313c] bg-[#171d26] text-[#c4cada] hover:border-amber-500/50"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
-            Ponto da carne
+            Extras
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {DONENESS_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setDoneness(option.id)}
-                className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
-                  doneness === option.id
-                    ? "border-amber-400 bg-amber-400/10 text-amber-300"
-                    : "border-[#2b313c] bg-[#171d26] text-[#c4cada] hover:border-amber-500/50"
-                }`}
-              >
-                {option.label}
-              {isBurger && (
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
-                    Ponto da carne
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {DONENESS_OPTIONS.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setDoneness(option.id)}
-                        className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
-                          doneness === option.id
-                            ? "border-amber-400 bg-amber-400/10 text-amber-300"
-                            : "border-[#2b313c] bg-[#171d26] text-[#c4cada] hover:border-amber-500/50"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <div className="space-y-2">
+            {addonsOptions.map((addon) => {
+              const selected = selectedAddons.some(
+                (entry) => entry.id === addon.id,
+              );
+              return (
+                <button
+                  key={addon.id}
+                  type="button"
+                  onClick={() => toggleAddon(addon)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all ${
+                    selected
                       ? "border-amber-400/70 bg-amber-400/10"
                       : "border-[#2b313c] bg-[#171d26] hover:border-[#3a4352]"
                   }`}
@@ -185,39 +184,39 @@ function ProductCustomizer({
           </div>
         </div>
 
+        {isBurger && removalOptions.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
+              Remover ingredientes
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {removalOptions.map((item) => {
+                const selected = selectedRemovals.includes(item);
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => toggleRemoval(item)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${
+                      selected
+                        ? "border-[#8b93a5] bg-[#2a2f39] text-white"
+                        : "border-[#2b313c] bg-[#171d26] text-[#c7cde0] hover:border-[#8b93a5]"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
-            Remover ingredientes
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {removalOptions.map((item) => {
-              const selected = selectedRemovals.includes(item);
-              {isBurger && removalOptions.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
-                    Remover ingredientes
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {removalOptions.map((item) => {
-                      const selected = selectedRemovals.includes(item);
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => toggleRemoval(item)}
-                          className={`rounded-xl border px-3 py-2 text-sm transition-all ${
-                            selected
-                              ? "border-[#8b93a5] bg-[#2a2f39] text-white"
-                              : "border-[#2b313c] bg-[#171d26] text-[#c7cde0] hover:border-[#8b93a5]"
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
+            Observacao
+          </label>
+          <textarea
+            rows={3}
             value={observation}
             onChange={(event) => setObservation(event.target.value)}
             placeholder="Ex: molho separado"
