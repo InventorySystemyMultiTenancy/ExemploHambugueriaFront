@@ -10,9 +10,14 @@ const emptyForm = () => ({
   description: "",
   imageUrl: "",
   category: "",
-  price: "",
+  singlePrice: "",
+  singleCostPrice: "",
   stock: "",
 });
+
+function getPrimarySize(product) {
+  return product?.sizes?.[0] ?? null;
+}
 
 // ── Tradução automática de produtos ──────────────────────────────────────────
 const I18N_URL =
@@ -136,12 +141,15 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
 
   const [form, setForm] = useState(() => {
     if (!isEdit) return emptyForm();
+    const firstSize = getPrimarySize(product);
     return {
       name: product.name,
       description: product.description ?? "",
       imageUrl: product.imageUrl ?? "",
       category: product.category ?? "",
-      price: product.price != null ? String(product.price) : "",
+      singlePrice: firstSize?.price != null ? String(firstSize.price) : "",
+      singleCostPrice:
+        firstSize?.costPrice != null ? String(firstSize.costPrice) : "",
       stock: product.stock != null ? String(product.stock) : "",
     };
   });
@@ -192,11 +200,17 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
     const errs = {};
     if (!form.name.trim()) errs.name = "Nome obrigatório";
     if (
-      form.price === "" ||
-      isNaN(Number(form.price)) ||
-      Number(form.price) <= 0
+      form.singlePrice === "" ||
+      isNaN(Number(form.singlePrice)) ||
+      Number(form.singlePrice) <= 0
     ) {
-      errs.price = "Preço inválido";
+      errs.singlePrice = "Preço inválido";
+    }
+    if (
+      form.singleCostPrice !== "" &&
+      (isNaN(Number(form.singleCostPrice)) || Number(form.singleCostPrice) < 0)
+    ) {
+      errs.singleCostPrice = "Custo inválido";
     }
     if (
       form.stock !== "" &&
@@ -218,7 +232,15 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
       description: form.description.trim() || undefined,
       imageUrl: form.imageUrl.trim() || undefined,
       category: form.category.trim() || undefined,
-      price: Number(form.price),
+      sizes: [
+        {
+          size: "GRANDE",
+          price: Number(form.singlePrice),
+          ...(form.singleCostPrice !== ""
+            ? { costPrice: Number(form.singleCostPrice) }
+            : {}),
+        },
+      ],
       ...(form.stock !== "" ? { stock: Number(form.stock) } : {}),
     };
     mutation.mutate(payload);
@@ -321,13 +343,6 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
             </p>
           </div>
 
-          <div>
-            <label className="mb-2 block text-xs uppercase tracking-widest text-smoke">
-              {t("ADMIN_PRODUCTS_TYPE_LABEL", "Tipo do produto")}
-            </label>
-            {/* Hamburgueria: no pizza type selector needed */}
-          </div>
-
           {/* Image URL */}
           <div>
             <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
@@ -354,11 +369,11 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
             )}
           </div>
 
-          {/* Price + Stock */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Sale Price + Cost Price + Stock */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
-                {t("ADMIN_PRODUCTS_SALE_PRICE", "Preço *")}
+                {t("ADMIN_PRODUCTS_SALE_PRICE", "Preço de venda *")}
               </label>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-smoke">R$</span>
@@ -366,16 +381,42 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
                   type="number"
                   step="0.01"
                   min="0"
-                  value={form.price}
+                  value={form.singlePrice}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, price: e.target.value }))
+                    setForm((p) => ({ ...p, singlePrice: e.target.value }))
                   }
                   className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gold/50"
                   placeholder="0,00"
                 />
               </div>
-              {errors.price && (
-                <p className="mt-0.5 text-xs text-red-400">{errors.price}</p>
+              {errors.singlePrice && (
+                <p className="mt-0.5 text-xs text-red-400">
+                  {errors.singlePrice}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-widest text-smoke">
+                {t("ADMIN_PRODUCTS_COST_PRICE", "Preço de custo")}
+              </label>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-smoke">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.singleCostPrice}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, singleCostPrice: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gold/50"
+                  placeholder="0,00"
+                />
+              </div>
+              {errors.singleCostPrice && (
+                <p className="mt-0.5 text-xs text-red-400">
+                  {errors.singleCostPrice}
+                </p>
               )}
             </div>
             <div>
@@ -428,6 +469,7 @@ function ProductModal({ product, onClose, existingCategories = [] }) {
 function ProductCard({ product, onEdit }) {
   const { t, locale, refreshTranslations } = useTranslation();
   const queryClient = useQueryClient();
+  const primarySize = getPrimarySize(product);
   const productName = tProductField(t, product.id, "NAME", product.name);
   const productDescription = product.description
     ? tProductField(t, product.id, "DESC", product.description)
@@ -575,9 +617,14 @@ function ProductCard({ product, onEdit }) {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">
-        {product.price != null && (
+        {primarySize?.price != null && (
           <span className="rounded-xl bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-            R$ {Number(product.price).toFixed(2)}
+            R$ {Number(primarySize.price).toFixed(2)}
+          </span>
+        )}
+        {primarySize?.costPrice != null && (
+          <span className="rounded-xl bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+            Custo R$ {Number(primarySize.costPrice).toFixed(2)}
           </span>
         )}
         {translatedCategory ? (
