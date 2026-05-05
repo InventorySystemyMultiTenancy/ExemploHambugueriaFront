@@ -27,6 +27,11 @@ const currency = (value) =>
     currency: "BRL",
   });
 
+const getProductPrice = (product) =>
+  Number(
+    product?.price ?? product?.basePrice ?? product?.sizes?.[0]?.price ?? 0,
+  );
+
 function isBurgerProduct(product) {
   const cat = (product?.category ?? "").toLowerCase();
   return /hamburguer|hamburger|burger|lanche|sanduíche|sanduiche/.test(cat);
@@ -47,7 +52,7 @@ function ProductCustomizer({
   const [observation, setObservation] = useState("");
   const [quantity, setQuantity] = useState(1);
 
-  const basePrice = Number(product?.price ?? product?.basePrice ?? 0);
+  const basePrice = getProductPrice(product);
 
   const addonsTotal = useMemo(
     () =>

@@ -14,6 +14,11 @@ const fmt = (value) =>
     currency: "BRL",
   });
 
+const getProductPrice = (product) =>
+  Number(
+    product?.price ?? product?.basePrice ?? product?.sizes?.[0]?.price ?? 0,
+  );
+
 function tProductField(t, productId, field, fallback) {
   const id = String(productId ?? "");
   const lowerKey = `PRODUCT_${id}_${field}`;
@@ -64,7 +69,7 @@ function MenuCard({ product }) {
 
           <div className="mt-2 flex items-end gap-4">
             <span className="text-sm font-bold text-amber-400">
-              {fmt(product.price ?? 0)}
+              {fmt(getProductPrice(product))}
             </span>
             <button
               type="button"
