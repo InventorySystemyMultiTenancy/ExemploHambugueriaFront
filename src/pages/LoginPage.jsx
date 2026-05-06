@@ -43,7 +43,11 @@ function LoginPage() {
       navigate("/admin");
       return;
     }
-    navigate("/dashboard");
+    if (["CLIENTE", "MESA"].includes(role)) {
+      navigate("/cardapio");
+      return;
+    }
+    navigate("/");
   };
 
   const loginMutation = useMutation({
