@@ -11,20 +11,18 @@ import { useTranslation } from "../context/I18nContext.jsx";
 const currency = (v) =>
   Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const CUID_REGEX = /^c[a-z0-9]{24}$/;
-
-const isCuid = (value) => CUID_REGEX.test(String(value || "").trim());
+const isValidEntityId = (value) => String(value || "").trim().length > 0;
 
 const mapItemToApi = (item) => {
   const payload = item.payload || {};
   const productId = payload.productId || item.id;
 
-  if (isCuid(productId)) {
+  if (isValidEntityId(productId)) {
     return {
       productId,
       addonIds: (
         payload.addonIds || (item.addons || []).map((addon) => addon.id)
-      ).filter(isCuid),
+      ).filter(isValidEntityId),
       removedIngredients:
         payload.removedIngredients ||
         (item.removals || []).join(", ") ||
