@@ -17,14 +17,20 @@ const formatCep = (v) => {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
 
+const CUID_REGEX = /^c[a-z0-9]{24}$/;
+
+const isCuid = (value) => CUID_REGEX.test(String(value || "").trim());
+
 const mapItemToApi = (item) => {
   const payload = item.payload || {};
+  const productId = payload.productId || item.id;
 
-  if (payload.productId || item.id) {
+  if (isCuid(productId)) {
     return {
-      productId: payload.productId || item.id,
-      addonIds:
-        payload.addonIds || (item.addons || []).map((addon) => addon.id),
+      productId,
+      addonIds: (
+        payload.addonIds || (item.addons || []).map((addon) => addon.id)
+      ).filter(isCuid),
       removedIngredients:
         payload.removedIngredients ||
         (item.removals || []).join(", ") ||
@@ -175,7 +181,7 @@ function CheckoutPage() {
         deliveryFee: effectiveFreight?.valorFreteNumerico ?? undefined,
         deliveryLat: effectiveFreight?.lat ?? undefined,
         deliveryLon: effectiveFreight?.lon ?? undefined,
-        items: items.map(mapItemToApi),
+        items: items.map(mapItemToApi).filter(Boolean),
       });
       return response.data?.data || response.data;
     },

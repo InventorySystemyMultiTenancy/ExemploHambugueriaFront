@@ -11,14 +11,20 @@ import { useTranslation } from "../context/I18nContext.jsx";
 const currency = (v) =>
   Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const CUID_REGEX = /^c[a-z0-9]{24}$/;
+
+const isCuid = (value) => CUID_REGEX.test(String(value || "").trim());
+
 const mapItemToApi = (item) => {
   const payload = item.payload || {};
+  const productId = payload.productId || item.id;
 
-  if (payload.productId || item.id) {
+  if (isCuid(productId)) {
     return {
-      productId: payload.productId || item.id,
-      addonIds:
-        payload.addonIds || (item.addons || []).map((addon) => addon.id),
+      productId,
+      addonIds: (
+        payload.addonIds || (item.addons || []).map((addon) => addon.id)
+      ).filter(isCuid),
       removedIngredients:
         payload.removedIngredients ||
         (item.removals || []).join(", ") ||
@@ -223,7 +229,7 @@ function MesaCheckoutPage() {
     mutationFn: async () => {
       const res = await api.post("/mesa/orders", {
         notes: notes.trim() || undefined,
-        items: items.map(mapItemToApi),
+        items: items.map(mapItemToApi).filter(Boolean),
       });
       return res.data?.data;
     },
