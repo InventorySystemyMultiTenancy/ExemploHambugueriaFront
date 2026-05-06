@@ -169,7 +169,7 @@ function CheckoutPage() {
 
   const createOrderMutation = useMutation({
     mutationFn: async (paymentMethod) => {
-      const response = await api.post("/orders", {
+      const payload = {
         deliveryAddress: fullAddress || "Endereço não informado",
         isPickup: deliveryType === "retirada",
         notes: [notes, referencia ? `Ref: ${referencia}` : ""]
@@ -180,7 +180,16 @@ function CheckoutPage() {
         deliveryLat: effectiveFreight?.lat ?? undefined,
         deliveryLon: effectiveFreight?.lon ?? undefined,
         items: items.map(mapItemToApi).filter(Boolean),
+      };
+
+      console.log("[CheckoutPage] create order payload", {
+        paymentMethod,
+        itemsCount: payload.items.length,
+        firstItem: payload.items[0] ?? null,
+        payload,
       });
+
+      const response = await api.post("/orders", payload);
       return response.data?.data || response.data;
     },
   });
@@ -198,8 +207,19 @@ function CheckoutPage() {
       const pref = await preferenceMutation.mutateAsync(order.id);
       window.open(pref.initPoint, "_blank", "noopener,noreferrer");
       setWaitingOrderId(order.id);
-    } catch {
-      toast.error("Erro ao gerar pagamento. Tente novamente.");
+    } catch (err) {
+      const data = err?.response?.data;
+      const details = data?.error?.details?.fieldErrors;
+      const detailText = details ? JSON.stringify(details) : null;
+      console.error("[CheckoutPage] create order failed", {
+        status: err?.response?.status,
+        data,
+      });
+      toast.error(
+        data?.error?.message
+          ? `${data.error.message}${detailText ? `: ${detailText}` : ""}`
+          : "Erro ao gerar pagamento. Tente novamente.",
+      );
     }
   };
 
@@ -209,8 +229,19 @@ function CheckoutPage() {
       toast.success("Pedido confirmado! Aguarde a cobrança presencial.");
       clearCart();
       navigate("/dashboard");
-    } catch {
-      toast.error("Erro ao criar pedido. Tente novamente.");
+    } catch (err) {
+      const data = err?.response?.data;
+      const details = data?.error?.details?.fieldErrors;
+      const detailText = details ? JSON.stringify(details) : null;
+      console.error("[CheckoutPage] presencial order failed", {
+        status: err?.response?.status,
+        data,
+      });
+      toast.error(
+        data?.error?.message
+          ? `${data.error.message}${detailText ? `: ${detailText}` : ""}`
+          : "Erro ao criar pedido. Tente novamente.",
+      );
     }
   };
 

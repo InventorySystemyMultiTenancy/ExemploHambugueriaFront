@@ -225,10 +225,18 @@ function MesaCheckoutPage() {
 
   const orderMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post("/mesa/orders", {
+      const payload = {
         notes: notes.trim() || undefined,
         items: items.map(mapItemToApi).filter(Boolean),
+      };
+
+      console.log("[MesaCheckoutPage] create mesa order payload", {
+        itemsCount: payload.items.length,
+        firstItem: payload.items[0] ?? null,
+        payload,
       });
+
+      const res = await api.post("/mesa/orders", payload);
       return res.data?.data;
     },
     onSuccess: (order) => {
@@ -240,9 +248,17 @@ function MesaCheckoutPage() {
       );
     },
     onError: (err) => {
+      const data = err?.response?.data;
+      const details = data?.error?.details?.fieldErrors;
+      const detailText = details ? JSON.stringify(details) : null;
+      console.error("[MesaCheckoutPage] create order failed", {
+        status: err?.response?.status,
+        data,
+      });
       toast.error(
-        err?.response?.data?.error?.message ??
-          t("MESA_CHECKOUT_ORDER_ERROR", "Erro ao fazer pedido."),
+        data?.error?.message
+          ? `${data.error.message}${detailText ? `: ${detailText}` : ""}`
+          : t("MESA_CHECKOUT_ORDER_ERROR", "Erro ao fazer pedido."),
       );
     },
   });
