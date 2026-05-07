@@ -36,12 +36,23 @@ function MenuCard({ product }) {
     ? tProductField(t, product.id, "DESC", product.description)
     : null;
 
+  const isEsgotado = product.stock === 0;
+
   return (
     <>
       <article
-        className="flex cursor-pointer overflow-hidden rounded-2xl border border-[#2a2a38] bg-[#1a1a22] shadow-sm transition hover:border-amber-400/30 hover:shadow-md"
-        onClick={() => setShowCustomizer(true)}
+        className={`relative flex overflow-hidden rounded-2xl border border-[#2a2a38] bg-[#1a1a22] shadow-sm transition ${
+          isEsgotado
+            ? "cursor-not-allowed opacity-60"
+            : "cursor-pointer hover:border-amber-400/30 hover:shadow-md"
+        }`}
+        onClick={() => !isEsgotado && setShowCustomizer(true)}
       >
+        {isEsgotado && (
+          <div className="absolute left-2 top-2 z-10 rounded-lg bg-red-600 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-widest text-white shadow">
+            {t("ESGOTADO", "Esgotado")}
+          </div>
+        )}
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
@@ -71,17 +82,29 @@ function MenuCard({ product }) {
             <span className="text-sm font-bold text-amber-400">
               {fmt(getProductPrice(product))}
             </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCustomizer(true);
-              }}
-              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-lg font-bold text-[#10151d] shadow-sm transition hover:bg-amber-300"
-              aria-label="Adicionar"
-            >
-              +
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              {isEsgotado && (
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-300">
+                  {t("OUT_OF_STOCK", "Sem estoque")}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isEsgotado) setShowCustomizer(true);
+                }}
+                disabled={isEsgotado}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-lg font-bold shadow-sm transition ${
+                  isEsgotado
+                    ? "cursor-not-allowed bg-gray-600 text-gray-400"
+                    : "bg-amber-400 text-[#10151d] hover:bg-amber-300"
+                }`}
+                aria-label="Adicionar"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
       </article>

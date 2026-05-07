@@ -632,6 +632,17 @@ function ProductCard({ product, onEdit }) {
             {translatedCategory}
           </span>
         ) : null}
+        <span
+          className={`rounded-xl px-2 py-0.5 text-xs font-semibold ${
+            product.stock === 0
+              ? "bg-red-100 text-red-600"
+              : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          {product.stock === 0
+            ? t("ADMIN_PRODUCTS_STOCK_ESGOTADO", "Esgotado")
+            : `Estoque: ${product.stock}`}
+        </span>
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
